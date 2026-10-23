@@ -16,9 +16,9 @@
 ### Entry index
 
 <!-- ENTRY-INDEX:START -->
-*Entry index, auto-generated 2026-10-23 by `greenlcc/scripts/update_log_index.py`. 47 entries.*
+*Entry index, auto-generated 2026-10-23 by `greenlcc/scripts/update_log_index.py`. 55 entries.*
 
-**[Decisions](#2-decisions)** (19)
+**[Decisions](#2-decisions)** (21)
 - `D-001` Topic 6: LCCA Decision Tool
 - `D-002` IGBC credit optimizer is the centrepiece; solar, HVAC and glazing are measures inside it
 - `D-003` Python + Streamlit (with Plotly and a custom theme)
@@ -38,8 +38,10 @@
 - `D-017` v2 simplification: 7 pages → Home + 4 steps (Set up · Recommendation · Can we trust it? · Re...
 - `D-018` Skills: use the built-in dataviz, pdf, xlsx, run, simplify and code-review skills; recommend...
 - `D-019` Git-ready folder GreenLCC-India/ (app at repo root, docs/, .gitignore, root README; no venv/...
+- `D-020` Published on GitHub: https://github.com/shreyasdkumbhar-bit/GreenLCC-India (branch main). Cr...
+- `D-021` Public repo carries no teammate names or roll numbers: README team line and log owner column...
 
-**[What worked](#3-what-worked)** (9)
+**[What worked](#3-what-worked)** (11)
 - `W-001` Single vectorised cash-flow engine (evaluate) used for scalar, sweep and Monte Carlo
 - `W-002` Exact enumeration of portfolios (1,152 combos for the demo)
 - `W-003` Hand-calc unit tests (annuity, replacement, residual, escalation, degradation, PV self-use/e...
@@ -49,8 +51,10 @@
 - `W-007` Rendering the PDFs to PNG (pdfplumber → image) and looking at them
 - `W-008` Output round-trip tests (export library CSV → reload → same measures)
 - `W-009` One self-contained project file (dump_bundle / load_bundle) instead of 3 CSV/JSON files; tes...
+- `W-010` .gitattributes marking *.pdf, *.xlsx, *.png as binary, added before the first commit
+- `W-011` GitHub CLI installed with winget install --id GitHub.cli; login with gh auth login (browser,...
 
-**[What didn't / dropped](#4-what-didnt--dropped)** (11)
+**[What didn't / dropped](#4-what-didnt--dropped)** (13)
 - `X-001` Plain "solar vs grid" as the main topic
 - `X-002` Single HTML page / Excel-only tool
 - `X-003` Pandas .style for the cash-flow table
@@ -62,8 +66,10 @@
 - `X-009` Hard-coded "60 tests" in the guide
 - `X-010` 11 separate downloads (6 CSVs, ZIP, memo .md)
 - `X-011` Testing the sidebar through AppTest's at.sidebar
+- `X-012` Deleting the GitHub repo to purge the replaced commit
+- `X-013` gh not found right after install
 
-**[Open questions](#5-open-questions)** (8)
+**[Open questions](#5-open-questions)** (10)
 - `Q-001` Verify the Maharashtra FAR % bonus against the official UDD notification
 - `Q-002` Get the real IGBC v4.0 point tables (reference guide)
 - `Q-003` Get the real MSEDCL commercial tariff for FY25-26 and its historic escalation
@@ -72,6 +78,8 @@
 - `Q-006` Test the Claude paths (quote extraction, memo polish) with a real ANTHROPIC_API_KEY
 - `Q-007` Validation Engineer: build validation/LCCA_check.xlsx and compare with tests/test_core.py ha...
 - `Q-008` Review the 4 PDFs/Excel outputs with the team: are the IGBC "documents to submit" lists (ind...
+- `Q-009` Delete and recreate the GitHub repo (same name, public) and push the clean commit 3610c9e, s...
+- `Q-010` Keep one working copy: future edits go in GreenLCC-India/ (the pushed repo); greenlcc/ is no...
 
 <!-- ENTRY-INDEX:END -->
 
@@ -123,6 +131,8 @@
 | D-017 | v2 simplification: 7 pages → Home + 4 steps (Set up · Recommendation · Can we trust it? · Report); 11 downloads → 3 (6-page decision PDF, 10-sheet Excel, one project file); target level + FAR switch moved to the sidebar; verdict sentence at the top of every page; plain-language labels with the textbook term on hover; Quick what-if sliders; 'Switch target' button when a level is unreachable; Next buttons | v1 felt clumsy: the answer sat on page 4 of 7 and most downloads repeated each other. Engine maths unchanged | 2026-10-23 | Tool developer / Documentation lead |
 | D-018 | Skills: use the built-in dataviz, pdf, xlsx, run, simplify and code-review skills; recommend installing Anthropic's official `webapp-testing` and `frontend-design` skills (`/plugin marketplace add anthropics/skills`); add a project skill `greenlcc/.claude/skills/greenlcc-run/SKILL.md` describing how to run, test and rebuild | First-party or self-written skills only; webapp-testing would close Q-005 (no browser check yet) | 2026-10-23 | Tool developer |
 | D-019 | Git-ready folder `GreenLCC-India/` (app at repo root, `docs/`, `.gitignore`, root README; no venv/caches/course PDF) plus two repo documents built by `scripts/make_docs_pdfs.py`: `docs/GreenLCC_User_Guide.pdf` (5 pp: install, screen map, screen by screen, demo script, own project, reading results, fixes) and `docs/GreenLCC_About.pdf` (6 pp: problem, how it works, every input file and column with units and rules, outputs, repo layout, limits) | To publish the tool on GitHub with self-explanatory docs; scripts detect the repo layout and write to `docs/` | 2026-10-23 | Documentation lead / Tool developer |
+| D-020 | Published on GitHub: https://github.com/shreyasdkumbhar-bit/GreenLCC-India (branch `main`). Created private with `gh repo create`, then made **public**. Commit author set per-repo to `shreyasdkumbhar-bit` with the GitHub no-reply email (no personal email in history); commit credits Claude as co-author | Share the tool and docs with the prof and others; private first so names could be checked before going public | 2026-10-23 | Documentation lead |
+| D-021 | Public repo carries **no teammate names or roll numbers**: README team line and log owner columns use roles (Finance lead, Tool developer, Data lead, Documentation lead, Validation lead); names/roll numbers removed from the guide, handbook and docs scripts; About PDF rebuilt. First commit replaced (amend + force-push) so history is clean (`fa100e6` → `3610c9e`). Local copies (`greenlcc/`, this log, the handbook PDF) keep names for internal use | Personal data of teammates should not be public | 2026-10-23 | Documentation lead |
 
 ## 3. What worked
 | ID | What | Notes | Date |
@@ -136,6 +146,8 @@
 | W-007 | Rendering the PDFs to PNG (pdfplumber → image) and looking at them | Found 5 visual defects tests missed: overlapping chart labels, orphaned heading, literal `<b>` tags in cells, `C&amp;I`, `-0.0%` | 2026-10-23 |
 | W-008 | Output round-trip tests (export library CSV → reload → same measures) | Proves saved files are genuinely reusable | 2026-10-23 |
 | W-009 | One self-contained project file (`dump_bundle` / `load_bundle`) instead of 3 CSV/JSON files; tested round-trip and rejection of bad files | Saving and reopening work is one click each way | 2026-10-23 |
+| W-010 | `.gitattributes` marking `*.pdf`, `*.xlsx`, `*.png` as binary, added before the first commit | Git (autocrlf on Windows) treated the reportlab PDFs as text and would have rewritten their line endings, corrupting them; remote PDF sizes verified identical to local | 2026-10-23 |
+| W-011 | GitHub CLI installed with `winget install --id GitHub.cli`; login with `gh auth login` (browser, HTTPS); called by full path `C:\Program Files\GitHub CLI\gh.exe` so no restart was needed | Repo created and pushed in one command | 2026-10-23 |
 
 **Demo headline (illustrative data, Gold target, 8% discount):** cheapest-upfront route ₹1.67 Cr capex / net LCC −₹2.92 Cr; recommended ₹2.77 Cr capex / net LCC −₹3.74 Cr, so about ₹0.8 Cr better over 25 years. Ranking flips only above ~14% discount rate or ~0% tariff escalation; Monte Carlo ≈ 98% in favour.
 
@@ -153,6 +165,8 @@
 | X-009 | Hard-coded "60 tests" in the guide | Went stale at once; the guide script now counts tests via pytest | 2026-10-23 |
 | X-010 | 11 separate downloads (6 CSVs, ZIP, memo .md) | Mostly duplicates of the PDF/Excel; confusing. Folded into a 6-page PDF and a 10-sheet Excel (Monte Carlo runs now a sheet) | 2026-10-23 |
 | X-011 | Testing the sidebar through AppTest's `at.sidebar` | After the first run with `st.navigation`, AppTest re-runs only the page script, so sidebar widgets vanish. Sidebar now tested with `AppTest.from_function` | 2026-10-23 |
+| X-012 | Deleting the GitHub repo to purge the replaced commit | `gh repo delete` returned HTTP 403: the login token lacks the `delete_repo` scope. Needs `gh auth refresh -h github.com -s delete_repo` (browser approval by the account owner) | 2026-10-23 |
+| X-013 | `gh` not found right after install | The open PowerShell window kept the old PATH; open a new window or use the full path to gh.exe | 2026-10-23 |
 
 ## 5. Open questions
 | ID | Question | Owner | Status |
@@ -165,6 +179,8 @@
 | Q-006 | Test the Claude paths (quote extraction, memo polish) with a real `ANTHROPIC_API_KEY` | Tool developer | Open |
 | Q-008 | Review the 4 PDFs/Excel outputs with the team: are the IGBC "documents to submit" lists (indicative) accurate for v4.0? | Data lead | Open |
 | Q-007 | Validation Engineer: build `validation/LCCA_check.xlsx` and compare with `tests/test_core.py` hand cases | Validation lead | Open |
+| Q-009 | Delete and recreate the GitHub repo (same name, public) and push the clean commit `3610c9e`, so the replaced commit `fa100e6` (which contained teammate names) can no longer be fetched by its ID. Waiting on the `delete_repo` scope (X-012) | Documentation lead | Open |
+| Q-010 | Keep one working copy: future edits go in `GreenLCC-India/` (the pushed repo); `greenlcc/` is now the older internal copy | Tool developer | Open |
 
 ## 6. Data sources & assumptions
 | Parameter | Value used | Status | Source |
@@ -191,6 +207,7 @@
 Checklist: [ ] `pytest` green · [ ] runs without API key · [ ] fixed seed · [ ] Excel validation matches
 
 ## 8. Changelog
+- **2026-10-23 (GitHub)**: Installed GitHub CLI, logged in as `shreyasdkumbhar-bit`, added `.gitattributes` (PDFs binary), committed the 48-file repo and created https://github.com/shreyasdkumbhar-bit/GreenLCC-India (private). Then removed teammate names and roll numbers from README, repo log, docs scripts and About PDF, replaced the first commit and force-pushed (history = one clean commit `3610c9e`), and made the repo **public**. 60 tests pass. Pending: delete + recreate the repo to purge the old commit (needs `delete_repo` scope, Q-009).
 - **2026-10-23 (repo)**: Created `GreenLCC-India/` for GitHub upload (copy of `greenlcc/` + `docs/` + README + .gitignore). New `scripts/make_docs_pdfs.py` builds the User Guide and About PDFs with live numbers; doc scripts and the log indexer now write to `docs/` when run inside the repo. 60 tests pass inside the repo folder. Note: `greenlcc/` and `GreenLCC-India/` are now two copies; edit one and re-copy, or work only in the repo from now on.
 - **2026-10-23 (v2 redesign)**: Pages rewritten as `0_home`, `1_setup` (project + measures + quote import), `2_recommendation` (optimizer + compare measures + what-if), `3_trust` (risk), `4_report` (3 downloads). Decision PDF expanded to 6 sections; Excel gains a Monte Carlo sheet; new project file save/open. Sidebar holds target + FAR switch. Guide, handbook and README updated and rebuilt (6 pages each). Added project skill `greenlcc-run`. 60 tests pass (ZIP/CSV tests replaced by project-file and PDF-section tests).
 - **2026-10-23 (handbook)**: Built `GreenLCC_Team_Handbook.pdf` (6 pages: big picture, input files, how the numbers are made with a worked solar example, every report and output, significance and honest limits, cheat sheet). Visual check by rendering pages; fixed a wrong residual-value explanation, merged formula lines, column widths. Test count in the PDFs is now computed, not typed.
