@@ -1,0 +1,4 @@
+# keep binary files byte-exact (PDFs from reportlab can look like text to git)
+*.pdf binary
+*.xlsx binary
+*.png binary

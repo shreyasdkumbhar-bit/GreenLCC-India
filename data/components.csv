@@ -1,0 +1,13 @@
+measure_id,component,cost,life_years
+HVAC_VRF,Compressors and controls,2000000,15
+HVAC_CHILLER,Chiller overhaul / major parts,3000000,15
+LIGHT_LED,LED drivers and fixtures,600000,10
+BMS,Controllers and sensors,800000,12
+COOLROOF,Re-coating,400000,8
+PV_50,Inverter,250000,12
+PV_50,PV modules,1100000,30
+PV_100,Inverter,500000,12
+PV_100,PV modules,2200000,30
+PV_150,Inverter,750000,12
+PV_150,PV modules,3300000,30
+WTR_STP,Blowers and membranes,1000000,15

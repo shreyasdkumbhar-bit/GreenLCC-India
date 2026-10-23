@@ -1,0 +1,12 @@
+streamlit>=1.40
+pandas
+numpy
+numpy-financial
+plotly
+pydantic>=2
+scipy
+pdfplumber
+reportlab
+openpyxl
+anthropic
+pytest

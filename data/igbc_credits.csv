@@ -1,0 +1,9 @@
+credit_id,category,name,max_points,rule,basis,thresholds,mandatory
+EE-C2,Energy Efficiency,Enhanced energy performance,11,threshold_pct,energy_eff,3:1|6:3|9:5|12:7|15:9|18:11,False
+EE-C3,Energy Efficiency,On-site renewable energy,8,threshold_pct,energy_re,2:2|5:4|10:6|15:8,False
+EE-C4,Energy Efficiency,Efficient lighting and controls,3,fixed,,,False
+EE-C5,Energy Efficiency,Energy metering and BMS,1,fixed,,,False
+WE-C1,Water Efficiency,Water-efficient fixtures and reuse,4,threshold_pct,water,15:1|30:2|45:3|60:4,True
+WE-C2,Water Efficiency,Wastewater treatment and reuse,2,fixed,,,False
+SS-C3,Site and Planning,Heat island reduction (cool roof),2,fixed,,,False
+IEQ-C1,Indoor Environment,Daylight and glazing performance,2,fixed,,,False
