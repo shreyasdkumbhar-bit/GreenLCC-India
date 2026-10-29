@@ -3,39 +3,40 @@ import json
 import streamlit as st
 
 from core import exports, report, state, ui
-from core.io import dump_bundle
+from core.io import write_workbook
 from core.schemas import Dataset
 
 ui.page_header(4, "Take it away", "Three files cover everyone: a PDF for the owner and the prof, an Excel workbook for whoever checks "
-               "the numbers, and a project file to reopen this exact setup later.")
+               "the numbers, and the input workbook to reopen or edit this exact setup later.")
 ds = ui.require_ds()
-target, obj, df, rec, cheap = state.recommendation(ds)
+target, df, rec, cheap = state.recommendation(ds)
 if rec is None:
     ui.unreachable(ds, df, target)
 
 
 @st.cache_data(show_spinner="Writing the report and workbook…")
-def _files(ds_json: str, target: str, obj: str) -> dict:
-    return exports.build_files(Dataset.model_validate_json(ds_json), target, obj)
+def _files(ds_json: str, target: str) -> dict:
+    return exports.build_files(Dataset.model_validate_json(ds_json), target)
 
 
-F = _files(ds.model_dump_json(), target, obj)
+F = _files(ds.model_dump_json(), target)
 res = F["res"]
 slug = "".join(c if c.isalnum() else "_" for c in ds.project.name).strip("_").lower()[:40] or "project"
 
 FILES = [
     ("Decision report", "PDF · 6 pages", ":material/picture_as_pdf:",
-     "The answer, the two routes compared, the IGBC credit checklist with documents to submit, what to buy, "
-     "the risk check, assumptions and the yearly cash flow.",
+     "The answer, the two routes compared with the incremental rate of return, the IGBC credit checklist, what to buy "
+     "(PW, EUAC, BCR, IRR/MIRR), the risk check, assumptions and the yearly cash flow.",
      "Owner, consultant, prof", F["pdf"], f"greenlcc_report_{slug}.pdf", "application/pdf"),
     ("Results workbook", "Excel · 10 sheets", ":material/table:",
      "Every number unrounded: summary, checklist, shopping list, yearly cash flow, all simulated futures, "
      "the top 200 mixes and every input.",
      "Whoever checks the maths", F["xlsx"], f"greenlcc_results_{slug}.xlsx",
      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-    ("Project file", "JSON · reopen later", ":material/save:",
-     "This building, its measures and the IGBC tables in one file. Open it from Home to continue exactly where you left off.",
-     "You, next time", dump_bundle(ds, target), f"{slug}.greenlcc.json", "application/json"),
+    ("Input workbook", "Excel · edit and reopen", ":material/save:",
+     "This building, its measures and the IGBC tables, with units and meanings. Edit it in Excel and open it from Home.",
+     "You, next time", write_workbook(ds.model_copy(update={"project": ds.project.model_copy(update={"target_level": target})})),
+     f"{slug}_input.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 ]
 cols = st.columns(3)
 for i, (title, kind, icon, desc, who, data, fname, mime) in enumerate(FILES):

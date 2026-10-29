@@ -1,10 +1,14 @@
 """Year-by-year cash-flow engine (nominal rupees, cost positive, savings negative).
 
-Conventions
-- Base prices (tariff, O&M, water) are year-1 prices and escalate from year 2.
-- Component replacement costs are today's prices inflated to the replacement year.
-- Residual value at the end of the study period = last purchase cost x remaining-life fraction.
-- LCC of a measure = net incremental life-cycle cost vs the code-minimum baseline;
+Conventions (CE 725 Ch 5, planning-horizon method)
+- Every measure is costed over one common study period N (co-termination), at the MARR.
+- Base prices (tariff, O&M, water) are year-1 prices and escalate from year 2 (geometric gradient).
+- O&M and re-purchase prices escalate at general inflation.
+- A measure is re-bought (at today's incremental price, inflated) when its life ends inside N; its one
+  replaceable part (inverter, compressor...) is re-bought every part_life years, except in a year the whole
+  measure is re-bought anyway.
+- Salvage (residual) value at year N = last purchase cost x remaining-life fraction.
+- LCC of a measure = present worth of its net incremental cost vs the code-minimum baseline;
   negative means the measure pays for itself over the study period.
 """
 from __future__ import annotations
@@ -15,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from . import finance
-from .schemas import Component, Measure, Project
+from .schemas import EXPORT_ESCALATION, Measure, Project
 
 
 @dataclass
@@ -53,40 +57,48 @@ class Streams:
         return Streams(n, 0.0, z.copy(), z.copy(), z.copy(), z.copy(), z.copy(), z.copy(), z.copy())
 
 
-def measure_streams(p: Project, m: Measure, comps: list[Component]) -> Streams:
+def _purchases(n: int, cost: float, life: float, skip: set[int] | None = None) -> tuple[dict[int, float], float, float]:
+    """Re-purchase years strictly inside (0, n) at multiples of `life`, plus (year bought last, remaining-life fraction)."""
+    buys, j = {}, 1
+    while j * life < n - 1e-9:
+        ty = int(round(j * life))
+        if 0 < ty < n and ty not in (skip or set()):
+            buys[ty] = cost
+        j += 1
+    t_last = np.floor((n - 1e-9) / life) * life
+    frac = max(0.0, (t_last + life - n) / life)
+    return buys, float(t_last), frac
+
+
+def measure_streams(p: Project, m: Measure) -> Streams:
     n = p.study_period
     t = np.arange(n + 1)
     yr = t >= 1
     k = np.where(yr, t - 1, 0)
 
-    om = np.where(yr, m.om_annual * (1 + m.om_escalation) ** k, 0.0)
+    om = np.where(yr, m.om_annual * (1 + p.inflation) ** k, 0.0)
     degr = np.where(yr, (1 - m.degradation) ** k, 0.0)
 
     repl = np.zeros(n + 1)
     resid = np.zeros(n + 1)
-    for c in comps:
-        step = c.life_years
-        # replacements at L, 2L, ... strictly inside the study period
-        j = 1
-        while j * step < n - 1e-9:
-            ty = int(round(j * step))
-            if 0 < ty < n:
-                repl[ty] += c.cost * (1 + p.inflation) ** ty
-            j += 1
-        t_last = np.floor((n - 1e-9) / step) * step
-        frac = max(0.0, (t_last + step - n) / step)
-        resid[n] += c.cost * (1 + p.inflation) ** t_last * frac
+    whole, t_last, frac = _purchases(n, m.capex, m.life_years)
+    for ty, c in whole.items():
+        repl[ty] += c * (1 + p.inflation) ** ty
+    resid[n] += m.capex * (1 + p.inflation) ** t_last * frac
+    if m.part_cost > 0 and m.part_life > 0:
+        parts, pt_last, pfrac = _purchases(n, m.part_cost, m.part_life, skip=set(whole))
+        for ty, c in parts.items():
+            repl[ty] += c * (1 + p.inflation) ** ty
+        if pt_last > 0 and int(round(pt_last)) not in whole:  # a part bought with the measure is in the measure's salvage
+            resid[n] += m.part_cost * (1 + p.inflation) ** pt_last * pfrac
 
-    kwh_eff = m.energy_saving_kwh * degr if m.kind == "efficiency" else np.zeros(n + 1)
-    if m.kind == "renewable":
-        gen = m.kwp * p.pv_yield_kwh_per_kwp * degr
-        kwh_self = gen * p.pv_self_consumption
-        kwh_exp = gen * (1 - p.pv_self_consumption)
-    else:
-        kwh_self = kwh_exp = np.zeros(n + 1)
-    water = np.where(yr, m.water_saving_kl, 0.0) if m.kind == "water" else np.zeros(n + 1)
+    kwh_eff = m.energy_saving_kwh * degr
+    gen = m.kwp * p.pv_yield_kwh_per_kwp * degr
+    kwh_self = gen * p.pv_self_consumption
+    kwh_exp = gen * (1 - p.pv_self_consumption)
+    water = np.where(yr, m.water_saving_kl, 0.0)
 
-    return Streams(n, m.capex - m.subsidy, om, repl, resid, kwh_eff, kwh_self, kwh_exp, water, m.kwp)
+    return Streams(n, m.capex, om, repl, resid, kwh_eff, kwh_self, kwh_exp, water, m.kwp)
 
 
 @dataclass
@@ -133,7 +145,7 @@ def evaluate(
     tm, cm, om_m, ym = _col(tariff_mult), _col(capex_mult), _col(om_mult), _col(yield_mult)
 
     retail = p.grid_tariff * tm * (1 + g) ** k * yr
-    export = p.export_tariff * (1 + p.export_escalation) ** k * yr
+    export = p.export_tariff * (1 + EXPORT_ESCALATION) ** k * yr
     water_p = p.water_tariff * (1 + p.water_escalation) ** k * yr
 
     capex_t = np.zeros_like(retail + 0 * cm)
@@ -188,21 +200,38 @@ def _saving_series(S: Streams, p: Project, **kw) -> np.ndarray:
 
 
 def summarize(S: Streams, p: Project, **kw) -> dict:
-    """Headline metrics for one alternative."""
+    """Headline metrics for one alternative vs doing nothing: PW, EUAC, BCR, rate of return, discounted payback."""
     ev = evaluate(S, p, **kw)
     d = p.discount_rate if kw.get("d") is None else kw["d"]
     lcc = ev.scalar("lcc")
     costs = ev.scalar("capex") + ev.scalar("om") + ev.scalar("repl") - ev.scalar("resid")
     savings = ev.scalar("energy") + ev.scalar("water")
     net = ev.net_t[0]
+    rr = finance.rate_of_return(-net, d)  # benefits positive
     return {
         "lcc": lcc,
         "eac": finance.eac(lcc, d, S.n),
         "capex": S.capex,
         "pv_costs": costs,
         "pv_savings": savings,
-        "sir": savings / costs if costs > 0 else None,
-        "payback": finance.payback_year(net),
+        "bcr": savings / costs if costs > 0 else None,
         "disc_payback": finance.discounted_payback_year(net, d),
-        "irr": finance.irr(net),
+        "ror": rr["rate"],
+        "ror_method": rr["method"],
+        "sign_changes": rr["sign_changes"],
+    }
+
+
+def incremental(Sa: Streams, Sb: Streams, p: Project, **kw) -> dict:
+    """Ch 7 incremental analysis: is the extra money spent on B (over A) earning at least the MARR?"""
+    d = p.discount_rate if kw.get("d") is None else kw["d"]
+    a, b = evaluate(Sa, p, **kw), evaluate(Sb, p, **kw)
+    cash = a.net_t[0] - b.net_t[0]  # what choosing B instead of A gains each year (year 0 = extra capex, negative)
+    rr = finance.rate_of_return(cash, d)
+    return {
+        "extra_capex": Sb.capex - Sa.capex,
+        "pw_gain": a.scalar("lcc") - b.scalar("lcc"),
+        "rate": rr["rate"], "method": rr["method"], "sign_changes": rr["sign_changes"],
+        "disc_payback": finance.discounted_payback_year(-cash, d),
+        "marr": d,
     }

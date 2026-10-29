@@ -9,7 +9,6 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 
 from . import carbon, finance
@@ -37,7 +36,7 @@ class MeasureEval:
 def evaluate_measures(ds: Dataset) -> dict[str, MeasureEval]:
     p, out = ds.project, {}
     for m in ds.measures:
-        S = measure_streams(p, m, ds.comps_for(m.measure_id))
+        S = measure_streams(p, m)
         ev = evaluate(S, p)
         out[m.measure_id] = MeasureEval(
             m, S, ev.scalar("capex"), ev.scalar("om"), ev.scalar("repl"), ev.scalar("resid"),
@@ -60,12 +59,6 @@ def combo_count(ds: Dataset) -> int:
     return n
 
 
-def far_benefit(ds: Dataset, level: str) -> float:
-    p = ds.project
-    pct = p.far_bonus_pct.get(level, 0.0)
-    return p.plot_area_m2 * p.fsi * pct / 100.0 * p.far_net_value_per_m2
-
-
 def enumerate_portfolios(ds: Dataset, mev: dict[str, MeasureEval] | None = None) -> pd.DataFrame:
     """Every feasible-by-roof portfolio with points, level, cost and carbon."""
     p = ds.project
@@ -74,7 +67,7 @@ def enumerate_portfolios(ds: Dataset, mev: dict[str, MeasureEval] | None = None)
                          "trim the library or merge exclusive groups.")
     mev = mev or evaluate_measures(ds)
     options = [[None, *ids] for ids in groups(ds).values()]
-    roof_kwp_cap = p.roof_area_m2 / p.pv_area_per_kwp_m2
+    roof_kwp_cap = p.roof_kwp_cap
     rows = []
     for combo in itertools.product(*options):
         ids = tuple(i for i in combo if i)
@@ -84,7 +77,6 @@ def enumerate_portfolios(ds: Dataset, mev: dict[str, MeasureEval] | None = None)
         sc = score(ds, [e.measure for e in sel])
         capex = sum(e.streams.capex for e in sel)
         lcc = sum(e.lcc for e in sel)
-        far = far_benefit(ds, sc.level)
         rows.append({
             "selection": ids,
             "n_measures": len(ids),
@@ -100,8 +92,6 @@ def enumerate_portfolios(ds: Dataset, mev: dict[str, MeasureEval] | None = None)
             "level": sc.level,
             "rank": sc.rank,
             "mandatory_ok": sc.mandatory_ok,
-            "far_benefit": far,
-            "net_lcc": lcc - (far if p.use_far_benefit else 0.0),
             "co2_t": sum(e.co2_t for e in sel),
         })
     return pd.DataFrame(rows)
@@ -112,7 +102,7 @@ def feasible(df: pd.DataFrame, ds: Dataset, target: str) -> pd.DataFrame:
 
 
 def best(df: pd.DataFrame, ds: Dataset, target: str, objective: str) -> pd.Series | None:
-    """objective in {'capex','lcc','net_lcc'}; ties broken by lower capex."""
+    """objective in {'capex','lcc'}; ties broken by lower capex."""
     f = feasible(df, ds, target)
     if f.empty:
         return None
@@ -139,24 +129,12 @@ def upgrade_path(df: pd.DataFrame, ds: Dataset, objective: str = "lcc") -> pd.Da
         extra = b["points"] - ds.project.base_points
         rows.append({
             "Level": lv.level, "Points": b["points"], "Capex": b["capex"], "LCC": b["lcc"],
-            "Net LCC (after FAR)": b["net_lcc"],
             "Incremental LCC vs previous level": None if prev is None else b["lcc"] - prev,
             "Rs per extra point (LCC)": None if extra <= 0 else b["lcc"] / extra,
             "selection": b["selection"],
         })
         prev = b["lcc"]
     return pd.DataFrame(rows)
-
-
-def pareto(df: pd.DataFrame) -> pd.DataFrame:
-    """Non-dominated portfolios: no other has >= points and <= LCC."""
-    d = df[df["mandatory_ok"]].sort_values(["points", "lcc"], ascending=[False, True])
-    keep, best_lcc = [], np.inf
-    for idx, r in d.iterrows():
-        if r["lcc"] < best_lcc - 1e-6:
-            keep.append(idx)
-            best_lcc = r["lcc"]
-    return d.loc[keep].sort_values("points")
 
 
 def breakdown(row: pd.Series) -> dict[str, float]:

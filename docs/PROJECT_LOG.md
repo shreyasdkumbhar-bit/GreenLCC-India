@@ -12,13 +12,14 @@
 6. [Data sources & assumptions](#6-data-sources--assumptions)
 7. [Demo script & checklist](#7-demo-script--checklist)
 8. [Changelog](#8-changelog)
+9. [Course alignment (CE 725)](#9-course-alignment-ce-725)
 
 ### Entry index
 
 <!-- ENTRY-INDEX:START -->
-*Entry index, auto-generated 2026-10-23 by `greenlcc/scripts/update_log_index.py`. 55 entries.*
+*Entry index, auto-generated 2026-10-29 by `greenlcc/scripts/update_log_index.py`. 70 entries.*
 
-**[Decisions](#2-decisions)** (21)
+**[Decisions](#2-decisions)** (29)
 - `D-001` Topic 6: LCCA Decision Tool
 - `D-002` IGBC credit optimizer is the centrepiece; solar, HVAC and glazing are measures inside it
 - `D-003` Python + Streamlit (with Plotly and a custom theme)
@@ -40,8 +41,16 @@
 - `D-019` Git-ready folder GreenLCC-India/ (app at repo root, docs/, .gitignore, root README; no venv/...
 - `D-020` Published on GitHub: https://github.com/shreyasdkumbhar-bit/GreenLCC-India (branch main). Cr...
 - `D-021` Public repo carries no teammate names or roll numbers: README team line and log owner column...
+- `D-022` v3 simplification: cut every input or output that is unused, unverified or duplicated. Remov...
+- `D-023` Align with CE 725 (see section 9): discount rate relabelled MARR; real MARR shown via Fisher...
+- `D-024` Decision metric stays PW (LCC) / EUAC; IRR/MIRR only accept/reject a measure or an increment...
+- `D-025` Measure life + one replaceable part replace components.csv: a measure is re-bought (inflated...
+- `D-026` One Excel input workbook (data/demo_input.xlsx: README, Project, Measures, IGBC_credits, IGB...
+- `D-027` Realistic demo data from one sizing basis (12,000 m² Pune office, 1.8 GWh/yr, HVAC 55%, ~350...
+- `D-028` Glossary PDF (docs/GreenLCC_Glossary.pdf, 47 terms: meaning + formula, CE 725 link, where in...
+- `D-029` One-click start: launcher.py (free port, opens browser) → GreenLCC.exe via PyInstaller (scri...
 
-**[What worked](#3-what-worked)** (11)
+**[What worked](#3-what-worked)** (13)
 - `W-001` Single vectorised cash-flow engine (evaluate) used for scalar, sweep and Monte Carlo
 - `W-002` Exact enumeration of portfolios (1,152 combos for the demo)
 - `W-003` Hand-calc unit tests (annuity, replacement, residual, escalation, degradation, PV self-use/e...
@@ -53,8 +62,10 @@
 - `W-009` One self-contained project file (dump_bundle / load_bundle) instead of 3 CSV/JSON files; tes...
 - `W-010` .gitattributes marking *.pdf, *.xlsx, *.png as binary, added before the first commit
 - `W-011` GitHub CLI installed with winget install --id GitHub.cli; login with gh auth login (browser,...
+- `W-012` CE 725 worked examples as unit tests (tests/test_course.py, 14 tests: Ch 3 factors, Ch 5 PW...
+- `W-013` Engine checked against closed-form geometric-gradient factors (P/A1, g, i, n) including salvage
 
-**[What didn't / dropped](#4-what-didnt--dropped)** (13)
+**[What didn't / dropped](#4-what-didnt--dropped)** (16)
 - `X-001` Plain "solar vs grid" as the main topic
 - `X-002` Single HTML page / Excel-only tool
 - `X-003` Pandas .style for the cash-flow table
@@ -68,8 +79,11 @@
 - `X-011` Testing the sidebar through AppTest's at.sidebar
 - `X-012` Deleting the GitHub repo to purge the replaced commit
 - `X-013` gh not found right after install
+- `X-014` FAR bonus valuation, net-LCC objective, subsidy, components.csv, JSON project file, Pareto a...
+- `X-015` Browser check of the v3 pages
+- `X-016` v2 docs builders (make_docs_pdfs.py, make_guide_pdf.py, make_handbook_pdf.py)
 
-**[Open questions](#5-open-questions)** (10)
+**[Open questions](#5-open-questions)** (12)
 - `Q-001` Verify the Maharashtra FAR % bonus against the official UDD notification
 - `Q-002` Get the real IGBC v4.0 point tables (reference guide)
 - `Q-003` Get the real MSEDCL commercial tariff for FY25-26 and its historic escalation
@@ -80,6 +94,8 @@
 - `Q-008` Review the 4 PDFs/Excel outputs with the team: are the IGBC "documents to submit" lists (ind...
 - `Q-009` Delete and recreate the GitHub repo (same name, public) and push the clean commit 3610c9e, s...
 - `Q-010` Keep one working copy: future edits go in GreenLCC-India/ (the pushed repo); greenlcc/ is no...
+- `Q-011` Rewrite the User Guide / About / handbook builders for v3 (or retire them in favour of the g...
+- `Q-012` Verify the demo's estimated values (MSEDCL tariff after the 25 Mar 2026 MERC order, VRF/chil...
 
 <!-- ENTRY-INDEX:END -->
 
@@ -133,6 +149,14 @@
 | D-019 | Git-ready folder `GreenLCC-India/` (app at repo root, `docs/`, `.gitignore`, root README; no venv/caches/course PDF) plus two repo documents built by `scripts/make_docs_pdfs.py`: `docs/GreenLCC_User_Guide.pdf` (5 pp: install, screen map, screen by screen, demo script, own project, reading results, fixes) and `docs/GreenLCC_About.pdf` (6 pp: problem, how it works, every input file and column with units and rules, outputs, repo layout, limits) | To publish the tool on GitHub with self-explanatory docs; scripts detect the repo layout and write to `docs/` | 2026-10-23 | Documentation lead / Tool developer |
 | D-020 | Published on GitHub: https://github.com/shreyasdkumbhar-bit/GreenLCC-India (branch `main`). Created private with `gh repo create`, then made **public**. Commit author set per-repo to `shreyasdkumbhar-bit` with the GitHub no-reply email (no personal email in history); commit credits Claude as co-author | Share the tool and docs with the prof and others; private first so names could be checked before going public | 2026-10-23 | Documentation lead |
 | D-021 | Public repo carries **no teammate names or roll numbers**: README team line and log owner columns use roles (Finance lead, Tool developer, Data lead, Documentation lead, Validation lead); names/roll numbers removed from the guide, handbook and docs scripts; About PDF rebuilt. First commit replaced (amend + force-push) so history is clean (`fa100e6` → `3610c9e`). Local copies (`greenlcc/`, this log, the handbook PDF) keep names for internal use | Personal data of teammates should not be public | 2026-10-23 | Documentation lead |
+| D-022 | **v3 simplification**: cut every input or output that is unused, unverified or duplicated. Removed: built-up area (never used), building type, plot/FSI/FAR bonus/₹ per m²/"net LCC after FAR" objective and the sidebar FAR switch, subsidy (always 0; no CFA for commercial rooftop PV), per-measure O&M escalation (now general inflation), measure `kind` (derived from the data), `source`, the Pareto chart, the carbon MACC chart, the tariff-multiplier break-even, simple payback | Tool should carry only what the decision and the course need; FAR was unverified (Q-001) and not an LCCA concept. Balance rule: keep every analysis that is a CE 725 concept | 2026-10-29 | Team |
+| D-023 | **Align with CE 725** (see section 9): discount rate relabelled MARR; real MARR shown via Fisher; EAC → EUAC; SIR → BCR; simple → discounted payback; per-measure IRR, or MIRR when the cash flow changes sign more than once; **incremental IRR of the recommended mix over the cheapest mix vs MARR** as the headline; cash flow diagram; factor-notation hand-check of a measure; course factor functions in `core/finance.py` | The tool should read as an application of the course: every number on screen maps to a chapter | 2026-10-29 | Finance lead |
+| D-024 | Decision metric stays **PW (LCC) / EUAC**; IRR/MIRR only accept/reject a measure or an increment, never rank | Ch 8 ranking paradox: highest IRR is not highest PW | 2026-10-29 | Finance lead |
+| D-025 | **Measure life + one replaceable part** replace `components.csv`: a measure is re-bought (inflated) when its life ends inside N; its part every part life, except in a year the whole measure is re-bought; salvage = last purchase × remaining-life fraction (planning-horizon method, Ch 5) | One sheet instead of two; removes the "PV modules 30 yr" component hack that existed only to create salvage value | 2026-10-29 | Finance lead |
+| D-026 | **One Excel input workbook** (`data/demo_input.xlsx`: README, Project, Measures, IGBC_credits, IGBC_levels) replaces 4 CSVs + `project_demo.json` and the JSON project file. Readable headers, % typed as %, every Project value has a source/status note. Results workbook carries the same sheets, so it reopens too | Users fill one familiar file; sources travel with the numbers | 2026-10-29 | Data lead |
+| D-027 | **Realistic demo data** from one sizing basis (12,000 m² Pune office, 1.8 GWh/yr, HVAC 55%, ~350 TR, 3,000 m² glazing, 2,500 m² roof); MARR 10%, inflation 5%, tariff ₹13/kWh, PV ₹45,000/kWp, CEA factor 0.727; no tuning to force a story | v2 numbers were tuned (W-005) and mis-sized (120 TR VRF for a 12,000 m² office) | 2026-10-29 | Data lead |
+| D-028 | **Glossary PDF** (`docs/GreenLCC_Glossary.pdf`, 47 terms: meaning + formula, CE 725 link, where in the tool / why it matters) built from `core/glossary.py`; a test fails if a screen label is missing from it | One place for the team to explain every term to the prof | 2026-10-29 | Documentation lead |
+| D-029 | **One-click start**: `launcher.py` (free port, opens browser) → `GreenLCC.exe` via PyInstaller (`scripts/build_exe.py`, onedir + zip); `Start_GreenLCC.bat` as the from-source fallback | Anyone can run the demo without installing Python | 2026-10-29 | Tool developer |
 
 ## 3. What worked
 | ID | What | Notes | Date |
@@ -148,8 +172,10 @@
 | W-009 | One self-contained project file (`dump_bundle` / `load_bundle`) instead of 3 CSV/JSON files; tested round-trip and rejection of bad files | Saving and reopening work is one click each way | 2026-10-23 |
 | W-010 | `.gitattributes` marking `*.pdf`, `*.xlsx`, `*.png` as binary, added before the first commit | Git (autocrlf on Windows) treated the reportlab PDFs as text and would have rewritten their line endings, corrupting them; remote PDF sizes verified identical to local | 2026-10-23 |
 | W-011 | GitHub CLI installed with `winget install --id GitHub.cli`; login with `gh auth login` (browser, HTTPS); called by full path `C:\Program Files\GitHub CLI\gh.exe` so no restart was needed | Repo created and pushed in one command | 2026-10-23 |
+| W-012 | CE 725 worked examples as unit tests (`tests/test_course.py`, 14 tests: Ch 3 factors, Ch 5 PW and capitalized cost, Ch 6 EUAW/CR, Ch 7 IRR and scale trap, Ch 8 three roots and MIRR 9.274%) | Proves the finance functions match the course; also found rounding slips in the notes (Ch 5 PW_A is 57,875.3 not 57,877.20; Ch 8 IRRs are 23.27%/34.26% not 23.40%/34.36%) | 2026-10-29 |
+| W-013 | Engine checked against closed-form geometric-gradient factors (P/A1, g, i, n) including salvage | Same answer as the year-by-year sum; the same check is on screen ("How it's calculated") | 2026-10-29 |
 
-**Demo headline (illustrative data, Gold target, 8% discount):** cheapest-upfront route ₹1.67 Cr capex / net LCC −₹2.92 Cr; recommended ₹2.77 Cr capex / net LCC −₹3.74 Cr, so about ₹0.8 Cr better over 25 years. Ranking flips only above ~14% discount rate or ~0% tariff escalation; Monte Carlo ≈ 98% in favour.
+**v2 demo headline (superseded by v3, see changelog; illustrative data, Gold target, 8% discount):** cheapest-upfront route ₹1.67 Cr capex / net LCC −₹2.92 Cr; recommended ₹2.77 Cr capex / net LCC −₹3.74 Cr, so about ₹0.8 Cr better over 25 years. Ranking flips only above ~14% discount rate or ~0% tariff escalation; Monte Carlo ≈ 98% in favour.
 
 ## 4. What didn't / dropped
 | ID | What | Why dropped | Date |
@@ -167,6 +193,9 @@
 | X-011 | Testing the sidebar through AppTest's `at.sidebar` | After the first run with `st.navigation`, AppTest re-runs only the page script, so sidebar widgets vanish. Sidebar now tested with `AppTest.from_function` | 2026-10-23 |
 | X-012 | Deleting the GitHub repo to purge the replaced commit | `gh repo delete` returned HTTP 403: the login token lacks the `delete_repo` scope. Needs `gh auth refresh -h github.com -s delete_repo` (browser approval by the account owner) | 2026-10-23 |
 | X-013 | `gh` not found right after install | The open PowerShell window kept the old PATH; open a new window or use the full path to gh.exe | 2026-10-23 |
+| X-014 | FAR bonus valuation, net-LCC objective, subsidy, components.csv, JSON project file, Pareto and MACC charts, simple payback | Dropped in v3 (D-022, D-025, D-026): unverified, unused, or duplicated | 2026-10-29 |
+| X-015 | Browser check of the v3 pages | Chrome extension still not connected (2026-10-29); pages verified by headless AppTest only. Q-005 stays open | 2026-10-29 |
+| X-016 | v2 docs builders (`make_docs_pdfs.py`, `make_guide_pdf.py`, `make_handbook_pdf.py`) | Still describe FAR and the CSV inputs, and no longer run against the v3 model; User Guide / About PDFs are stale until rewritten | 2026-10-29 |
 
 ## 5. Open questions
 | ID | Question | Owner | Status |
@@ -181,32 +210,42 @@
 | Q-007 | Validation Engineer: build `validation/LCCA_check.xlsx` and compare with `tests/test_core.py` hand cases | Validation lead | Open |
 | Q-009 | Delete and recreate the GitHub repo (same name, public) and push the clean commit `3610c9e`, so the replaced commit `fa100e6` (which contained teammate names) can no longer be fetched by its ID. Waiting on the `delete_repo` scope (X-012) | Documentation lead | Open |
 | Q-010 | Keep one working copy: future edits go in `GreenLCC-India/` (the pushed repo); `greenlcc/` is now the older internal copy | Tool developer | Open |
+| Q-011 | Rewrite the User Guide / About / handbook builders for v3 (or retire them in favour of the glossary + README) | Documentation lead | Open |
+| Q-012 | Verify the demo's estimated values (MSEDCL tariff after the 25 Mar 2026 MERC order, VRF/chiller ₹/TR from recent tenders, Pune water tariff) | Data lead | Open |
 
 ## 6. Data sources & assumptions
+Demo inputs live in `data/demo_input.xlsx` (built by `scripts/make_demo_input.py`); each Project value carries this status in the workbook.
+
 | Parameter | Value used | Status | Source |
 |---|---|---|---|
-| Discount rate | 8% nominal | Assumption | Typical Indian cost of capital |
-| General inflation | 5% | Assumption | RBI target band |
-| Commercial grid tariff | ₹11/kWh | Dummy | Order of magnitude for MSEDCL commercial |
-| Tariff escalation | 5% ± 2% | Dummy | To verify (Q-003) |
-| Rooftop solar export credit | ₹2.82/kWh | Verified (news) | MERC FY25-26 |
-| PV specific yield, Pune | ~1450 kWh/kWp/yr | Assumption | Typical for the region |
-| Grid emission factor | 0.71 tCO₂/MWh | Approx. | CEA CO₂ baseline database |
-| IGBC levels | Certified 50 / Silver 60 / Gold 70 / Platinum 80 | Illustrative | IGBC GNB structure, to verify (Q-002) |
-| IGBC credit points | See `greenlcc/data/igbc_credits.csv` | Illustrative | — |
-| FAR bonus | Silver 3% / Gold 5% / Platinum 7% | Unverified | Q-001 |
+| Building | 12,000 m² office, Pune; 1.8 GWh/yr (150 kWh/m²·yr); HVAC 55%, lighting 20% | Assumption | Typical code-minimum Indian office |
+| Water | 14,000 kL/yr | Assumption | 1,000 occupants × 45 L/day × 300 days (NBC 2016) |
+| Study period | 25 years | Choice | PV module life |
+| MARR | 10% nominal (real 4.76% via Fisher) | Assumption | 10-yr G-sec ~6.5% + 3–4 pp risk premium |
+| General inflation | 5% | Assumption | RBI CPI target 4% ± 2 |
+| Grid tariff | ₹13/kWh, +5%/yr ± 2 pp | Estimate | MSEDCL commercial >50 kW ~₹12–15/kVAh + wheeling/FAC; MERC 2025 MYT order under review (Q-003, Q-012) |
+| Solar export credit | ₹2.82/kWh, flat | Verified (news) | MERC FY25-26 ([SolarQuarter](https://solarquarter.com/2025/04/09/maharashtra-electricity-regulatory-commission-sets-rooftop-solar-tariff-at-%e2%82%b92-82-kwh-for-fy-2025-26/)) |
+| Rooftop PV | ₹45,000/kWp; O&M ₹600/kWp/yr; inverters ₹5,000/kWp every 12 yrs; 0.5%/yr degradation; 1,450 kWh/kWp; 95% self-use | Estimate | MSEDCL 2026 benchmark ₹45,450/kW ([CSIS India States](https://indianstates.csis.org/articles/2026-03-11-maharashtra-finalizes-a-benchmark-rate-of-493-inr45-450-per-kw-for-rooftop-solar-installations/maharashtra-finalizes-a-benchmark-rate-of-493-inr45-450-per-kw-for-rooftop-solar-installations/)); market ₹38–50k/kW |
+| VRF (350 TR) | +₹45k/TR over splits (₹1.58 Cr); saves 25% of HVAC kWh; life 15 | Estimate | ~₹90k/TR installed vs ~₹45k/TR split baseline; tender rates ([SBI HVAC bid](https://sbi.co.in/webfiles/uploads/files_2425/160120251753-PRICE%20BID%20FOR%20HVAC%20WORKS%20FINAL.pdf)) |
+| Water-cooled chiller (350 TR) | +₹70k/TR (₹2.45 Cr); saves 35%; ₹9 L/yr O&M; overhaul ₹35 L every 12 yrs; life 25 | Estimate | ~₹1.15 L/TR plant; ~0.85 vs 1.3 kW/TR |
+| Glazing (3,000 m²) | DGU +₹2,500/m² (3% HVAC); low-e +₹4,500/m² (7% HVAC); life 30 | Estimate | — |
+| LED + controls, BMS, cool roof | ₹450/m² (30% lighting), ₹400/m² (6% HVAC), ₹300/m² (6 kWh/m² roof) | Estimate | — |
+| Water | Fixtures ₹12 L (25%); STP 50 KLD ₹40 L, ₹4.5 L/yr O&M (35%); tariff ₹60/kL +6%/yr | Estimate | Pune commercial water + sewerage |
+| Grid emission factor | 0.727 tCO₂/MWh | Verified (secondary) | CEA CO₂ Baseline Database v20, FY 2023-24 ([SolarQuarter](https://solarquarter.com/2025/01/06/co2-baseline-database-highlights-indias-progress-in-renewable-energy-and-emission-reduction-cea/)) |
+| IGBC levels / credit points | Certified 50 / Silver 60 / Gold 70 / Platinum 80; EE-C2 thresholds 5–30% | Illustrative | To verify (Q-002) |
 
 ## 7. Demo script & checklist
-1. Load the Pune office demo: base points 52, target Gold (70)
-2. Measures: upload `SunRise_Solar_100kWp_quote.pdf`, review the AI-extracted fields, add to library
-3. LCCA: split AC vs VRF vs chiller. VRF has the higher capex but the lowest EAC
-4. IGBC Optimizer: min-capex Gold vs min-LCC Gold, then toggle on the FAR benefit
-5. Risk: the discount sweep's rank flip, break-even, Monte Carlo P(min-LCC wins)
-6. Report: AI owner summary, then download Excel
+1. Double-click `GreenLCC.exe` (or `Start_GreenLCC.bat`); Home → Try the Pune demo: base points 52, target Gold (70)
+2. Set up: show MARR 10% and the real MARR (Fisher); import `SunRise_Solar_150kWp_quote.pdf`, review the AI fields, add it
+3. Recommendation: cheapest Gold vs lowest-LCC Gold; the extra capex earns ~14% (MIRR) vs 10% MARR (Ch 7 incremental rule)
+4. Compare measures: VRF vs chiller: VRF is cheaper upfront, chiller has the lower PW and EUAC; show the cash flow diagram and why MIRR (sign changes from re-purchases, Ch 8)
+5. How it's calculated: factor hand-check of LED matches the engine
+6. Risk: break-even MARR, tornado, MARR sweep, Monte Carlo; Report: PDF + Excel; hand out the glossary
 
 Checklist: [ ] `pytest` green · [ ] runs without API key · [ ] fixed seed · [ ] Excel validation matches
 
 ## 8. Changelog
+- **2026-10-29 (v3: simplify + CE 725)**: Audited inputs and outputs and cut the irrelevant ones (D-022). Aligned every metric with the CE 725 notes (D-023, D-024, section 9). Replaced components.csv with measure life + one part (D-025). Replaced CSV/JSON inputs with one Excel input workbook (D-026). Rebuilt the demo data from one sizing basis with sources (D-027). Added the glossary PDF (D-028), a one-click launcher and `GreenLCC.exe` (D-029). New tests: 14 textbook examples, engine-vs-factor check, re-purchase/salvage rules, workbook round-trips, glossary coverage. **83 tests pass.** Demo result: Gold via chiller + LED + BMS + cool roof + 200 kWp PV + fixtures, ₹4.57 Cr upfront, LCC −₹6.66 Cr, vs cheapest Gold ₹1.81 Cr / −₹2.97 Cr; the extra ₹2.75 Cr earns 13.8% (MIRR) vs 10% MARR; flips only above 22.3% MARR. Progress tracked in `docs/progress.md`.
 - **2026-10-23 (GitHub)**: Installed GitHub CLI, logged in as `shreyasdkumbhar-bit`, added `.gitattributes` (PDFs binary), committed the 48-file repo and created https://github.com/shreyasdkumbhar-bit/GreenLCC-India (private). Then removed teammate names and roll numbers from README, repo log, docs scripts and About PDF, replaced the first commit and force-pushed (history = one clean commit `3610c9e`), and made the repo **public**. 60 tests pass. Pending: delete + recreate the repo to purge the old commit (needs `delete_repo` scope, Q-009).
 - **2026-10-23 (repo)**: Created `GreenLCC-India/` for GitHub upload (copy of `greenlcc/` + `docs/` + README + .gitignore). New `scripts/make_docs_pdfs.py` builds the User Guide and About PDFs with live numbers; doc scripts and the log indexer now write to `docs/` when run inside the repo. 60 tests pass inside the repo folder. Note: `greenlcc/` and `GreenLCC-India/` are now two copies; edit one and re-copy, or work only in the repo from now on.
 - **2026-10-23 (v2 redesign)**: Pages rewritten as `0_home`, `1_setup` (project + measures + quote import), `2_recommendation` (optimizer + compare measures + what-if), `3_trust` (risk), `4_report` (3 downloads). Decision PDF expanded to 6 sections; Excel gains a Monte Carlo sheet; new project file save/open. Sidebar holds target + FAR switch. Guide, handbook and README updated and rebuilt (6 pages each). Added project skill `greenlcc-run`. 60 tests pass (ZIP/CSV tests replaced by project-file and PDF-section tests).
@@ -214,3 +253,20 @@ Checklist: [ ] `pytest` green · [ ] runs without API key · [ ] fixed seed · [
 - **2026-10-23 (outputs + guide)**: Added `core/tables.py` (IGBC checklist, procurement shortlist, cash flow, MC draws, library CSVs), `core/exports.py` (2-page decision PDF, ZIP bundle, `build_files`), formatted 9-sheet Excel, and a Report page download center (11 downloads). Built `GreenLCC_India_Guide.pdf` (6 pages: problem, interface tour, how to use, outputs, impact, limits, sources). 61 tests pass. App restarted on http://localhost:8765.
 - **2026-10-23 (build)**: Built `greenlcc/`: core engine (`finance`, `cashflow`, `igbc`, `optimizer`, `risk`, `carbon`, `extract`, `report`, `charts`), 7-page Streamlit app, dummy data + 3 quote PDFs, 50 tests passing. Installed missing packages with `pip --user` (no venv). Loader now reports all input errors in one pass. Run: `cd greenlcc; python -m streamlit run app.py`.
 - **2026-10-23**: Researched the problem, approved the plan (IGBC centrepiece, Streamlit), and created this log.
+
+## 9. Course alignment (CE 725)
+Every on-screen metric maps to a chapter of `725/` (course notes). Full definitions: `docs/GreenLCC_Glossary.pdf`.
+
+| Course concept | Chapter | Where in GreenLCC |
+|---|---|---|
+| Scarcity and choice; simple payback is a pitfall | Ch 1 | Cheapest-upfront vs lowest-LCC framing; discounted payback replaces simple payback |
+| TVM, cash flow diagram, Fisher equation (nominal vs real) | Ch 2 | CFD chart per measure; real MARR shown on Set up; nominal ₹ model discounted at nominal MARR |
+| Interest factors (F/P, P/F, P/A, A/P, A/F, P/G, A/G), geometric gradient | Ch 3 | `core/finance.py`; "How it's calculated" hand-checks a measure in factor notation |
+| Present worth, co-termination, planning-horizon method with salvage, intangibles | Ch 5 | Life-cycle cost = PW over N with salvage; IGBC points and CO₂ shown alongside |
+| EUAW / capital recovery | Ch 6 | EUAC beside every PW; CR formula used as a test cross-check |
+| MARR, IRR, incremental IRR, pairwise challenger vs defender | Ch 7 | Headline "extra capex earns X% vs MARR"; per-measure IRR; upgrade path as pairwise steps |
+| Multiple IRR, Descartes' sign rule, MIRR, NPW-vs-IRR ranking paradox | Ch 8 | Sign changes counted; MIRR when non-simple; ranking always on PW/EUAC |
+| BCR, payback | Module 2 | BCR and discounted payback per measure |
+| Sensitivity, break-even, Monte Carlo | Module 3 | Tornado, break-even MARR / tariff growth / capex, MARR sweep, Monte Carlo P10/P50/P90 |
+| Green finance, carbon | Module 5 | IGBC target, CO₂ avoided |
+| Out of scope | Modules 3–5 | Decision trees, real options, depreciation and tax (e.g. accelerated depreciation on PV), project finance and PPP |

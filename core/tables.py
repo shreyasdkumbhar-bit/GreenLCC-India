@@ -23,7 +23,7 @@ EVIDENCE = {
 def checklist(ds: Dataset, sel) -> pd.DataFrame:
     chosen = [ds.measure(i) for i in sel]
     sc = igbc.score(ds, chosen)
-    kind_for = {"energy_eff": "efficiency", "energy_re": "renewable", "water": "water"}
+    claims = {"energy_eff": lambda m: m.energy_saving_kwh > 0, "energy_re": lambda m: m.kwp > 0, "water": lambda m: m.water_saving_kl > 0}
     credit = {c.credit_id: c for c in ds.credits}
     rows = []
     for _, r in sc.breakdown.iterrows():
@@ -35,7 +35,7 @@ def checklist(ds: Dataset, sel) -> pd.DataFrame:
             if c.rule == "fixed":
                 who = [m.name for m in chosen if m.credit_id == cid]
             else:
-                who = [m.name for m in chosen if m.kind == kind_for[c.basis]]
+                who = [m.name for m in chosen if claims[c.basis](m)]
             by = "; ".join(who) or "(nothing selected)"
         rows.append({"Credit": cid, "Category": r["category"], "Credit name": r["name"], "Points earned": r["points"],
                      "Maximum": r["max"], "Earned by": by, "Documents to submit (indicative)": EVIDENCE.get(cid, ""),
@@ -47,21 +47,20 @@ def checklist(ds: Dataset, sel) -> pd.DataFrame:
 
 
 def shortlist(ds: Dataset, sel) -> pd.DataFrame:
-    """Procurement shortlist: what to buy, what it costs over its life."""
+    """Procurement shortlist: what to buy and how each item performs over its life, on its own vs doing nothing."""
     p = ds.project
     rows = []
     for i in sel:
         m = ds.measure(i)
-        comps = ds.comps_for(i)
-        S = risk.portfolio_streams(ds, [i])
-        ev = cashflow.summarize(S, p)
+        ev = cashflow.summarize(risk.portfolio_streams(ds, [i]), p)
         rows.append({
-            "Measure ID": m.measure_id, "Measure": m.name, "Group": m.exclusive_group or "", "Source": m.source,
-            "Upfront capex (Rs)": m.capex - m.subsidy, "Annual O&M, year 1 (Rs)": m.om_annual,
-            "Replaceable components": "; ".join(f"{c.component} (every {c.life_years:g} yrs, Rs {c.cost:,.0f})" for c in comps),
-            "Energy saved (kWh/yr)": m.energy_saving_kwh or m.kwp * p.pv_yield_kwh_per_kwp,
+            "Measure ID": m.measure_id, "Measure": m.name, "Group": m.exclusive_group or "",
+            "Upfront capex (Rs)": m.capex, "Life (yrs)": m.life_years, "Annual O&M, year 1 (Rs)": m.om_annual,
+            "Replaceable part": f"{m.part_name or 'part'} (every {m.part_life:g} yrs, Rs {m.part_cost:,.0f})" if m.part_cost else "",
+            "Energy saved (kWh/yr)": m.energy_saving_kwh + m.kwp * p.pv_yield_kwh_per_kwp,
             "Water saved (kL/yr)": m.water_saving_kl, "IGBC credit": m.credit_id,
-            f"LCC over {p.study_period} yrs (Rs)": ev["lcc"], "EAC (Rs/yr)": ev["eac"], "Simple payback (yrs)": ev["payback"],
+            f"PW of cost over {p.study_period} yrs (Rs)": ev["lcc"], "EUAC (Rs/yr)": ev["eac"], "BCR": ev["bcr"],
+            "Rate of return": ev["ror"], "Rate method": ev["ror_method"], "Discounted payback (yrs)": ev["disc_payback"],
         })
     return pd.DataFrame(rows)
 
@@ -72,4 +71,4 @@ def cashflow_table(ds: Dataset, sel) -> pd.DataFrame:
 
 def mc_runs(ds: Dataset, a, b, runs: int = 5000, seed: int = 42) -> pd.DataFrame:
     mc = risk.monte_carlo(ds, a, b, runs, seed)
-    return pd.DataFrame({"run": range(1, runs + 1), "net_lcc_A_cheapest_upfront_Rs": mc.lcc_a, "net_lcc_B_recommended_Rs": mc.lcc_b})
+    return pd.DataFrame({"run": range(1, runs + 1), "lcc_A_cheapest_upfront_Rs": mc.lcc_a, "lcc_B_recommended_Rs": mc.lcc_b})

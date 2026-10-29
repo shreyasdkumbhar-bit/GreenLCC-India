@@ -12,52 +12,51 @@ from reportlab.pdfgen import canvas
 OUT = Path(__file__).resolve().parent.parent / "sample_quotes"
 
 QUOTES = {
-    "SunRise_Solar_100kWp_quote.pdf": {
+    "SunRise_Solar_150kWp_quote.pdf": {
         "title": "QUOTATION - Rooftop Solar PV",
         "lines": [
             "Vendor: SunRise Solar Pvt Ltd, Pune",
             "Quote ref: SRS/2026/0412   Date: 12-Oct-2026",
             "Item: Grid-tied rooftop solar PV system (net metering ready)",
-            "Capacity: 100 kWp",
+            "Capacity: 150 kWp",
             "Scope: modules, inverters, mounting structure, cabling, net-meter liaison",
             "",
-            "Total price (incl. GST): Rs. 44,00,000",
-            "Annual maintenance contract (AMC): Rs. 80,000 per year",
+            "Total price (incl. GST): Rs. 67,50,000",
+            "Annual maintenance contract (AMC): Rs. 90,000 per year",
             "Product warranty: 10 years",
-            "Performance warranty: 25 years (linear, 0.6% per year degradation)",
-            "Inverter replacement: Rs. 5,00,000 at 12 years",
+            "Performance warranty: 25 years (linear, 0.5% per year degradation)",
+            "Inverter replacement: Rs. 7,50,000 at 12 years",
             "Payment terms: 30% advance, 60% on delivery, 10% on commissioning",
         ],
     },
-    "CoolAir_VRF_120TR_quote.pdf": {
+    "CoolAir_VRF_350TR_quote.pdf": {
         "title": "QUOTATION - VRF Air Conditioning",
         "lines": [
             "Vendor: CoolAir Systems India Pvt Ltd, Mumbai",
             "Quote ref: CAS/VRF/7781   Date: 14-Oct-2026",
             "Item: VRF air conditioning system, inverter outdoor units",
-            "Capacity: 120 TR",
+            "Capacity: 350 TR",
             "Scope: outdoor and indoor units, refrigerant piping, controls, commissioning",
             "Rated ISEER: 5.8 (code-minimum split baseline: 3.8)",
             "",
-            "Total price (incl. GST): Rs. 1,92,00,000",
-            "Annual maintenance contract (AMC): Rs. 4,20,000 per year",
+            "Total price (incl. GST): Rs. 3,15,00,000",
+            "Annual maintenance contract (AMC): Rs. 5,25,000 per year",
             "Product warranty: 5 years (compressor 10 years)",
-            "Compressor replacement: Rs. 20,00,000 at 15 years",
             "Payment terms: 40% advance, 50% on delivery, 10% on commissioning",
         ],
     },
-    "ClearView_DGU_Glazing_quote.pdf": {
+    "ClearView_LowE_Glazing_quote.pdf": {
         "title": "QUOTATION - Low-e Double Glazed Facade",
         "lines": [
             "Vendor: ClearView Facades Ltd, Bengaluru",
             "Quote ref: CVF-2026-218   Date: 15-Oct-2026",
             "Item: Low-e double glazed unit curtain wall",
-            "Capacity: 1,800 sq m",
+            "Capacity: 3,000 sq m",
             "Scope: glass units, aluminium framing, installation",
             "Glass: SHGC 0.25, VLT 55%, U-value 1.6 W/sq m K",
             "",
-            "Total price (incl. GST): Rs. 1,62,00,000",
-            "Annual maintenance contract (AMC): Rs. 60,000 per year",
+            "Total price (incl. GST): Rs. 2,40,00,000",
+            "Annual maintenance contract (AMC): Rs. 0 per year",
             "Product warranty: 10 years",
             "Payment terms: 50% advance, 50% on completion",
         ],
@@ -82,6 +81,8 @@ def make(name: str, spec: dict) -> None:
 
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
+    for old in OUT.glob("*.pdf"):
+        old.unlink()
     for n, s in QUOTES.items():
         make(n, s)
         print("wrote", OUT / n)

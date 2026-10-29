@@ -16,7 +16,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from . import igbc, report, tables
+from . import finance, report, tables
 from .schemas import Dataset
 
 GREEN, DEEP, MINT, INK, INK2, GRID = "#1E7B4F", "#0F4D33", "#E3F1E8", "#0B0B0B", "#52514E", "#E1E0D9"
@@ -86,7 +86,7 @@ def compare_chart(res: dict) -> Drawing:
     d = Drawing(170 * mm, 62 * mm)
     c = VerticalBarChart()
     c.x, c.y, c.width, c.height = 40, 22, 360, 105
-    c.data = [[ch["capex"] / 1e7, rec["capex"] / 1e7], [ch["net_lcc"] / 1e7, rec["net_lcc"] / 1e7]]
+    c.data = [[ch["capex"] / 1e7, rec["capex"] / 1e7], [ch["lcc"] / 1e7, rec["lcc"] / 1e7]]
     c.categoryAxis.categoryNames = ["Cheapest upfront", "Recommended"]
     c.categoryAxis.labels.fontName = c.valueAxis.labels.fontName = "Helvetica"
     c.categoryAxis.labels.fontSize = c.valueAxis.labels.fontSize = 8.5
@@ -102,7 +102,7 @@ def compare_chart(res: dict) -> Drawing:
     c.barLabels.nudge = 6
     c.groupSpacing = 30
     d.add(c)
-    d.add(String(40, 148, "Upfront capex (blue) vs net life-cycle cost (green), Rs crore - lower is better", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor(INK2)))
+    d.add(String(40, 148, "Upfront capex (blue) vs life-cycle cost, PW (green), Rs crore - lower is better", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor(INK2)))
     return d
 
 
@@ -110,7 +110,7 @@ def _footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(colors.HexColor(INK2))
-    canvas.drawString(18 * mm, 10 * mm, "GreenLCC India - illustrative prototype data; verify IGBC tables, tariffs and prices before real decisions.")
+    canvas.drawString(18 * mm, 10 * mm, "GreenLCC India - prices are sourced estimates, IGBC tables illustrative; verify before real decisions.")
     canvas.drawRightString(A4[0] - 18 * mm, 10 * mm, f"Page {doc.page}")
     canvas.restoreState()
 
@@ -133,7 +133,7 @@ def risk_verdict(res: dict) -> str:
     mc, be = res["monte_carlo"], res["break_even"]
     flips = []
     if be.get("discount") is not None:
-        flips.append(f"the discount rate rises above {report.pct(be['discount'])}")
+        flips.append(f"the MARR rises above {report.pct(be['discount'])}")
     if be.get("tariff_escalation") is not None:
         g = be["tariff_escalation"]
         flips.append("electricity prices stop rising altogether" if abs(g) < 0.0005 else f"electricity prices grow slower than {report.pct(g)} a year")
@@ -163,20 +163,22 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
         return buf.getvalue()
 
     rec, ch, mc, be = res["recommended"], res["cheapest_upfront"], res["monte_carlo"], res["break_even"]
+    inc = res.get("incremental")
+    inc_txt = "same mix" if not inc else (report.ror_text(inc["rate"], inc["method"]) + f" vs MARR {report.pct(inc['marr'])}")
     target = res["target"]
-    rec_row = optimizer.best(df, ds, target, res.get("objective", "lcc"))
+    rec_row = optimizer.best(df, ds, target, "lcc")
     ch_row = optimizer.best(df, ds, target, "capex")
 
     # 1 - summary
-    kp = [["IGBC result", "Lifetime cost", "Upfront cost", "CO2 avoided"],
-          [f"{rec['level']} · {rec['points']:g} pts", report.money(rec["net_lcc"]), report.money(rec["capex"]), f"{rec['co2_tonnes']:,.0f} t"]]
+    kp = [["IGBC result", "Life-cycle cost (PW)", "Upfront cost", "CO2 avoided"],
+          [f"{rec['level']} · {rec['points']:g} pts", report.money(rec["lcc"]), report.money(rec["capex"]), f"{rec['co2_tonnes']:,.0f} t"]]
     story += [P("Contents: 1 Summary · 2 The two routes · 3 IGBC credit checklist · 4 What to buy · 5 Risk · "
                 "6 Assumptions and yearly cash flow", "small"), Spacer(1, 6), grid_table(kp, [W * .25] * 4, st), Spacer(1, 4),
               Paragraph("1  The answer", st["h2"]), Paragraph("<b>" + escape(safe(verdict(res))) + "</b>", st["body"]), P(risk_verdict(res))]
     story += md_to_flow(report.template_narrative(res).split("## Risk")[0], st)
     story += [KeepTogether([compare_chart(res)]),
-              P("Lifetime cost = everything paid minus everything saved over the study period, in today's money (present worth). "
-                "A negative number means the measures pay for themselves.", "small"), PageBreak()]
+              P("Life-cycle cost (LCC) = present worth, at the MARR, of everything paid minus everything saved over the study period "
+                "(planning-horizon method with salvage value). A negative number means the measures pay for themselves.", "small"), PageBreak()]
 
     # 2 - routes
     def names(r) -> str:
@@ -186,23 +188,26 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
             ["Measures", names(ch_row), names(rec_row)],
             ["IGBC level / points", f"{ch['level']} / {ch['points']:g}", f"{rec['level']} / {rec['points']:g}"],
             ["Upfront cost", _rs(ch["capex"]), _rs(rec["capex"])],
-            ["Lifetime cost", _rs(ch["net_lcc"]), _rs(rec["net_lcc"])],
-            ["Cost per year (EAC)", _rs(ch_row["eac"]), _rs(rec_row["eac"])],
-            ["Extra-FAR value at this level", _rs(ch_row["far_benefit"]), _rs(rec_row["far_benefit"])],
+            ["Life-cycle cost (PW at MARR)", _rs(ch["lcc"]), _rs(rec["lcc"])],
+            ["EUAC (equivalent uniform annual cost)", _rs(ch_row["eac"]), _rs(rec_row["eac"])],
+            ["Incremental rate of return of the extra capex", "-", inc_txt],
             ["CO2 avoided over life", f"{ch['co2_tonnes']:,.0f} t", f"{rec['co2_tonnes']:,.0f} t"]]
-    story += [Paragraph("2  The two routes to the same rating", st["h2"]), grid_table(rows, [W * .26, W * .37, W * .37], st), Spacer(1, 8)]
+    story += [Paragraph("2  The two routes to the same rating", st["h2"]), grid_table(rows, [W * .26, W * .37, W * .37], st),
+              P("Incremental analysis (Ch 7): the costlier mix is worth it when the return on its extra capex is at least the MARR. "
+                "When re-purchases make the incremental cash flow change sign more than once, the IRR is not unique and MIRR "
+                "(finance and reinvestment rate = MARR) is reported instead (Ch 8).", "small"), Spacer(1, 8)]
     bd_c, bd_r = optimizer.breakdown(ch_row), optimizer.breakdown(rec_row)
-    rows = [["Where the lifetime cost comes from (present worth)", "Cheapest upfront", "Recommended"]] + [
+    rows = [["Where the life-cycle cost comes from (present worth)", "Cheapest upfront", "Recommended"]] + [
         [k, _rs(bd_c[k]), _rs(bd_r[k])] for k in bd_c] + [
-        ["<b>Total lifetime cost</b>", f"<b>{_rs(ch_row['lcc'])}</b>", f"<b>{_rs(rec_row['lcc'])}</b>"]]
+        ["<b>Total life-cycle cost</b>", f"<b>{_rs(ch_row['lcc'])}</b>", f"<b>{_rs(rec_row['lcc'])}</b>"]]
     story += [grid_table(rows, [W * .46, W * .27, W * .27], st),
               P("Costs are positive; savings and leftover equipment value are negative.", "small"), Spacer(1, 8)]
     path = optimizer.upgrade_path(df, ds, "lcc")
     if not path.empty:
-        rows = [["Level", "Points", "Upfront cost", "Lifetime cost", "Step-up vs previous level"]] + [
+        rows = [["Level", "Points", "Upfront cost", "Life-cycle cost", "Step-up vs previous level"]] + [
             [r["Level"], f"{r['Points']:g}", _rs(r["Capex"]), _rs(r["LCC"]), _rs(r["Incremental LCC vs previous level"])]
             for _, r in path.iterrows()]
-        story.append(KeepTogether([Paragraph("Cheapest lifetime route to each IGBC level", st["h3"]),
+        story.append(KeepTogether([Paragraph("Lowest life-cycle-cost route to each IGBC level", st["h3"]),
                                    grid_table(rows, [W * .18, W * .12, W * .22, W * .22, W * .26], st)]))
     story.append(PageBreak())
 
@@ -218,15 +223,24 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
 
     # 4 - shopping list
     sl = tables.shortlist(ds, rec_sel)
-    lcc_col = next(c for c in sl.columns if c.startswith("LCC over"))
-    data = [["Measure", "Upfront", "O&M / yr", "Parts to replace", "Lifetime cost", "Payback"]] + [
-        [r["Measure"], _rs(r["Upfront capex (Rs)"]), _rs(r["Annual O&M, year 1 (Rs)"]), r["Replaceable components"] or "-",
-         _rs(r[lcc_col]), "never" if r["Simple payback (yrs)"] is None or pd.isna(r["Simple payback (yrs)"]) else f"{r['Simple payback (yrs)']:.1f} yrs"]
-        for _, r in sl.iterrows()]
+    lcc_col = next(c for c in sl.columns if c.startswith("PW of cost"))
+
+    def yrs(v) -> str:
+        return "never" if v is None or pd.isna(v) else f"{v:.1f} yrs"
+
+    data = [["Measure", "Upfront", "Life", "PW of cost", "EUAC / yr", "BCR", "Rate of return", "Disc. payback"]] + [
+        [r["Measure"], _rs(r["Upfront capex (Rs)"]), f"{r['Life (yrs)']:g} yrs", _rs(r[lcc_col]), _rs(r["EUAC (Rs/yr)"]),
+         "-" if r["BCR"] is None or pd.isna(r["BCR"]) else f"{r['BCR']:.2f}", report.ror_text(r["Rate of return"], r["Rate method"]),
+         yrs(r["Discounted payback (yrs)"])] for _, r in sl.iterrows()]
+    parts = [f"{r['Measure']}: {r['Replaceable part']}" for _, r in sl.iterrows() if r["Replaceable part"]]
     story += [Paragraph("4  What to buy (procurement shortlist)", st["h2"]),
-              P("For the tender team: ask vendors to quote lifetime cost, not just price. Each line is costed on its own against "
-                "the code-minimum baseline."),
-              grid_table(data, [W * .22, W * .12, W * .11, W * .31, W * .13, W * .11], st), PageBreak()]
+              P("For the tender team: ask vendors to quote life-cycle cost, not just price. Each line is costed on its own against "
+                "the code-minimum baseline (do nothing). BCR = PW of savings / PW of costs; rate of return is IRR, or MIRR when the "
+                "cash flow changes sign more than once."),
+              grid_table(data, [W * .2, W * .1, W * .07, W * .11, W * .11, W * .07, W * .19, W * .15], st)]
+    if parts:
+        story.append(P("Parts replaced during the study period: " + "; ".join(parts) + ".", "small"))
+    story.append(PageBreak())
 
     # 5 - risk
     def fmt(v, is_pct: bool) -> str:
@@ -237,10 +251,9 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
           ["Chance the recommended route saves money overall", f"{mc.get('p_recommended_saves_money', 0)*100:.0f}%"],
           ["Recommended lifetime cost, P10 / P50 / P90", f"{_rs(mc['recommended_p10'])} / {_rs(mc['recommended_p50'])} / {_rs(mc['recommended_p90'])}"],
           ["Cheapest-upfront lifetime cost, P10 / P50 / P90", f"{_rs(mc.get('cheapest_p10'))} / {_rs(mc.get('cheapest_p50'))} / {_rs(mc.get('cheapest_p90'))}"],
-          ["Ranking flips if the discount rate is above", fmt(be.get("discount"), True)],
+          ["Ranking flips if the MARR is above", fmt(be.get("discount"), True)],
           ["Ranking flips if tariff growth is below", fmt(be.get("tariff_escalation"), True) + (" (flat prices)" if be.get("tariff_escalation") is not None and abs(be["tariff_escalation"]) < 0.0005 else "")],
-          ["Ranking flips if today's tariff is scaled below", fmt(be.get("tariff_mult"), False)],
-          ["Ranking flips if all capex is scaled above", fmt(be.get("capex_mult"), False)]]
+                    ["Ranking flips if all capex is scaled above", fmt(be.get("capex_mult"), False)]]
     story += [Paragraph("5  Can we trust it? (risk)", st["h2"]), Paragraph("<b>" + escape(safe(risk_verdict(res))) + "</b>", st["body"]),
               grid_table(rk, [W * .55, W * .45], st), Spacer(1, 8)]
     tor = risk.tornado(ds, rec_sel).sort_values("swing", ascending=False)
@@ -249,14 +262,14 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
     story += [Paragraph("What moves the answer most (change in recommended lifetime cost)", st["h3"]),
               grid_table(rows, [W * .5, W * .25, W * .25], st),
               P("Verify the top two lines with real data first: they decide the result. Simulation draws: tariff growth ~ Normal, "
-                "discount rate ~ triangular (-2/+3 pp), capex ~ triangular (-10%/+20%), solar yield ~ Normal(1, 7%).", "small"), PageBreak()]
+                "MARR ~ triangular (-2/+3 pp), capex ~ triangular (-10%/+20%), solar yield ~ Normal(1, 7%).", "small"), PageBreak()]
 
     # 6 - assumptions + cash flow
-    asm = [["Parameter", "Value"], ["Study period", f"{p.study_period} years"], ["Discount rate (nominal)", f"{p.discount_rate*100:.1f}%"],
-           ["General inflation", f"{p.inflation*100:.1f}%"],
+    asm = [["Parameter", "Value"], ["Study period", f"{p.study_period} years"], ["MARR (nominal discount rate)", f"{p.discount_rate*100:.1f}%"],
+           ["Real MARR (Fisher equation)", report.pct(finance.real_rate(p.discount_rate, p.inflation))],
+           ["General inflation (O&M and re-purchases)", f"{p.inflation*100:.1f}%"],
            ["Grid tariff (year 1)", f"Rs {p.grid_tariff:g}/kWh, growing {p.tariff_escalation*100:.1f}% a year"],
-           ["Solar export credit", f"Rs {p.export_tariff:g}/kWh"], ["Grid emission factor", f"{p.grid_emission_factor} tCO2/MWh"],
-           ["Extra FAR value counted", "Yes" if p.use_far_benefit else "No"]]
+           ["Solar export credit", f"Rs {p.export_tariff:g}/kWh"], ["Grid emission factor", f"{p.grid_emission_factor} tCO2/MWh"]]
     story += [Paragraph("6  Assumptions", st["h2"]), grid_table(asm, [W * .4, W * .6], st), Spacer(1, 6)]
     cf = tables.cashflow_table(ds, rec_sel)
     cols = ["Capex", "O&M", "Replacement", "Residual value", "Energy savings", "Water savings", "Net cash flow", "Present worth", "Cumulative PW"]
@@ -264,22 +277,21 @@ def decision_pdf(ds: Dataset, df: pd.DataFrame, res: dict, rec_sel, cheap_sel) -
         [str(y)] + [f"{round(r[c] / 1e5, 1) + 0.0:,.1f}" for c in cols] for y, r in cf.iterrows()]
     story += [Paragraph("Yearly cash flow, recommended portfolio (Rs lakh; costs +, savings -)", st["h3"]),
               grid_table(rows, [W * .07] + [W * .93 / 9] * 9, st),
-              P(f"The PW column sums to the lifetime cost before FAR value ({_rs(cf['Present worth'].sum())}). "
+              P(f"The PW column sums to the life-cycle cost ({_rs(cf['Present worth'].sum())}). "
                 "The Excel workbook has every number unrounded.", "small")]
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return buf.getvalue()
 
 
-def build_files(ds: Dataset, target: str, objective: str, runs: int = 3000) -> dict:
+def build_files(ds: Dataset, target: str, runs: int = 3000) -> dict:
     """Compute the downloads once (the UI caches this): the decision report PDF and the results workbook."""
     from . import optimizer
 
     df = optimizer.enumerate_portfolios(ds)
-    res = report.collect_results(ds, df, target, objective, runs=runs)
-    res["objective"] = objective
+    res = report.collect_results(ds, df, target, runs=runs)
     if not res.get("feasible"):
         return {"res": res, "feasible": False}
-    rs = optimizer.best(df, ds, target, objective)["selection"]
+    rs = optimizer.best(df, ds, target, "lcc")["selection"]
     cs = optimizer.best(df, ds, target, "capex")["selection"]
     return {
         "feasible": True, "res": res, "memo": report.template_narrative(res), "rec_sel": rs, "cheap_sel": cs,

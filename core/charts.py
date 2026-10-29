@@ -45,30 +45,12 @@ def stacked_compare(parts: dict[str, dict[str, float]]) -> go.Figure:
         fig.add_bar(name=comp, x=labels, y=[cr(parts[l][comp]) for l in labels], marker=dict(color=col, line=dict(color=SURFACE, width=2)),
                     hovertemplate=f"{comp}: " + "%{y:.2f} Cr<extra></extra>", width=0.45)
     net = [cr(sum(parts[l].values())) for l in labels]
-    fig.add_scatter(x=labels, y=net, mode="markers+text", name="Net LCC",
+    fig.add_scatter(x=labels, y=net, mode="markers+text", name="Total LCC",
                     marker=dict(symbol="diamond", size=12, color=INK, line=dict(color=SURFACE, width=2)),
                     text=[f"{v:+.2f} Cr" for v in net], textposition="middle right", textfont=dict(color=INK),
-                    hovertemplate="Net LCC: %{y:.2f} Cr<extra></extra>")
+                    hovertemplate="Total LCC: %{y:.2f} Cr<extra></extra>")
     fig.update_layout(barmode="relative")
     return _base(fig, "Life-cycle cost build-up (present worth, vs code-minimum baseline)", "Rs crore", height=430)
-
-
-def pareto_scatter(df: pd.DataFrame, front: pd.DataFrame, marks: dict[str, tuple[float, float, str]], thresholds: dict[str, float]) -> go.Figure:
-    fig = go.Figure()
-    fig.add_scatter(x=df["points"], y=cr(df["lcc"]), mode="markers", name="All portfolios",
-                    marker=dict(size=6, color=AXIS, opacity=0.6, line=dict(color=SURFACE, width=1)),
-                    customdata=df["selection"].map(lambda s: ", ".join(s) or "(none)"),
-                    hovertemplate="%{x:g} pts · %{y:.2f} Cr<br>%{customdata}<extra></extra>")
-    fig.add_scatter(x=front["points"], y=cr(front["lcc"]), mode="lines+markers", name="Efficient frontier",
-                    line=dict(color=BLUE, width=2), marker=dict(size=8, color=BLUE, line=dict(color=SURFACE, width=2)),
-                    hovertemplate="%{x:g} pts · %{y:.2f} Cr<extra>Frontier</extra>")
-    for name, (x, y, col) in marks.items():
-        fig.add_scatter(x=[x], y=[cr(y)], mode="markers", name=name,
-                        marker=dict(size=14, color=col, symbol="diamond", line=dict(color=SURFACE, width=2)))
-    for lv, pts in thresholds.items():
-        fig.add_vline(x=pts, line=dict(color=AXIS, width=1, dash="dot"), annotation_text=lv,
-                      annotation_font=dict(color=MUTED, size=11), annotation_position="top")
-    return _base(fig, "Every portfolio: IGBC points vs life-cycle cost", "Net LCC (Rs crore, lower is better)", "IGBC points", height=420)
 
 
 def credit_bars(bd: pd.DataFrame) -> go.Figure:
@@ -87,18 +69,18 @@ def credit_bars(bd: pd.DataFrame) -> go.Figure:
 def upgrade_chart(path: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(x=path["Level"], y=cr(path["Capex"]), name="Upfront capex", marker=dict(color=BLUE, line=dict(color=SURFACE, width=2)), width=0.35)
-    fig.add_bar(x=path["Level"], y=cr(path["LCC"]), name="Net LCC", marker=dict(color=AQUA, line=dict(color=SURFACE, width=2)), width=0.35)
+    fig.add_bar(x=path["Level"], y=cr(path["LCC"]), name="Life-cycle cost", marker=dict(color=AQUA, line=dict(color=SURFACE, width=2)), width=0.35)
     fig.update_layout(barmode="group")
-    return _base(fig, "Cheapest portfolio at each IGBC level", "Rs crore")
+    return _base(fig, "Lowest life-cycle-cost portfolio at each IGBC level", "Rs crore")
 
 
 def alt_bars(names: list[str], lcc: list[float], eac: list[float]) -> go.Figure:
     from plotly.subplots import make_subplots
 
-    fig = make_subplots(rows=1, cols=2, subplot_titles=("Life-cycle cost (present worth)", "Equivalent annual cost"))
+    fig = make_subplots(rows=1, cols=2, subplot_titles=("Life-cycle cost (present worth)", "EUAC (cost per year)"))
     fig.add_bar(x=names, y=cr(lcc), marker=dict(color=BLUE), name="LCC", row=1, col=1, width=0.4,
                 text=[f"{v:.2f}" for v in cr(lcc)], textposition="outside", hovertemplate="%{x}: %{y:.2f} Cr<extra></extra>")
-    fig.add_bar(x=names, y=np.asarray(eac) / 1e5, marker=dict(color=AQUA), name="EAC", row=1, col=2, width=0.4,
+    fig.add_bar(x=names, y=np.asarray(eac) / 1e5, marker=dict(color=AQUA), name="EUAC", row=1, col=2, width=0.4,
                 text=[f"{v:.1f}" for v in np.asarray(eac) / 1e5], textposition="outside", hovertemplate="%{x}: %{y:.1f} L/yr<extra></extra>")
     fig.update_yaxes(title="Rs crore", row=1, col=1)
     fig.update_yaxes(title="Rs lakh per year", row=1, col=2)
@@ -126,7 +108,7 @@ def discount_sweep_chart(sw: pd.DataFrame, name_a: str, name_b: str, flip: float
     if flip is not None:
         fig.add_vline(x=flip * 100, line=dict(color=INK2, width=1, dash="dash"),
                       annotation_text=f"rank flips at {flip*100:.1f}%", annotation_font=dict(color=INK2, size=11))
-    return _base(fig, "Does the ranking survive a different discount rate?", "Net LCC (Rs crore)", "Discount rate (%)")
+    return _base(fig, "Does the ranking survive a different MARR?", "Life-cycle cost (Rs crore)", "MARR (%)")
 
 
 def tornado_chart(t: pd.DataFrame) -> go.Figure:
@@ -139,7 +121,7 @@ def tornado_chart(t: pd.DataFrame) -> go.Figure:
                 marker=dict(color=BLUE, line=dict(color=SURFACE, width=2)),
                 hovertemplate="%{y}: %{x:+.2f} Cr vs base<extra>Favourable</extra>")
     fig.update_layout(barmode="overlay")
-    fig = _base(fig, f"What moves the answer most (base net LCC {base/CR:.2f} Cr)", "", "Change in net LCC (Rs crore)", height=360)
+    fig = _base(fig, f"What moves the answer most (base LCC {base/CR:.2f} Cr)", "", "Change in life-cycle cost (Rs crore)", height=360)
     fig.update_yaxes(gridcolor="rgba(0,0,0,0)")
     return fig
 
@@ -151,22 +133,21 @@ def mc_histogram(a: np.ndarray, b: np.ndarray, name_a: str, name_b: str) -> go.F
                           hovertemplate="%{x:.2f} Cr: %{y} runs<extra>" + name + "</extra>")
         fig.add_vline(x=float(np.median(cr(arr))), line=dict(color=col, width=2, dash="dash"))
     fig.update_layout(barmode="overlay")
-    return _base(fig, "Monte Carlo: spread of net LCC (dashed = median)", "Runs", "Net LCC (Rs crore)")
+    return _base(fig, "Monte Carlo: spread of life-cycle cost (dashed = median)", "Runs", "Life-cycle cost (Rs crore)")
 
 
-def macc_chart(df: pd.DataFrame) -> go.Figure:
-    """df: name, co2_t, per_t (Rs/tCO2). Width = lifetime tonnes avoided, height = Rs per tonne."""
-    d = df.sort_values("per_t")
+def cash_flow_diagram(tab: pd.DataFrame) -> go.Figure:
+    """Ch 2 cash flow diagram: receipts/savings up, disbursements down, one bar per year (nominal Rs lakh)."""
+    L = 1e5
+    up = -(tab["Energy savings"] + tab["Water savings"] + tab["Residual value"])
+    down = tab["Capex"] + tab["O&M"] + tab["Replacement"]
     fig = go.Figure()
-    x0 = 0.0
-    for _, r in d.iterrows():
-        col = GOOD if r["per_t"] < 0 else CRIT
-        fig.add_bar(x=[x0 + r["co2_t"] / 2], y=[r["per_t"]], width=[r["co2_t"] * 0.96], name=r["name"], showlegend=False,
-                    marker=dict(color=col, line=dict(color=SURFACE, width=2)), text=[r["name"]], textposition="outside",
-                    textfont=dict(size=10, color=INK2),
-                    hovertemplate=f"{r['name']}<br>{r['co2_t']:,.0f} t avoided<br>Rs %{{y:,.0f}} per tonne<extra></extra>")
-        x0 += r["co2_t"]
-    return _base(fig, "Marginal abatement cost: cost (or saving) per tonne of CO2 avoided", "Rs per tCO2 (negative = saves money)", "Lifetime tCO2 avoided (cumulative)", height=400)
+    fig.add_bar(x=tab.index, y=up / L, name="Savings + salvage (in)", marker=dict(color=AQUA, line=dict(color=SURFACE, width=1)),
+                hovertemplate="Year %{x}: +%{y:.1f} L<extra>in</extra>")
+    fig.add_bar(x=tab.index, y=-down / L, name="Capex, O&M, replacements (out)", marker=dict(color=ORANGE, line=dict(color=SURFACE, width=1)),
+                hovertemplate="Year %{x}: %{y:.1f} L<extra>out</extra>")
+    fig.update_layout(barmode="relative", bargap=0.35)
+    return _base(fig, "Cash flow diagram (up = money in, down = money out)", "Rs lakh (nominal)", "Year", height=340)
 
 
 def tariff_preview(p0: float, g: float, sd: float, n: int) -> go.Figure:

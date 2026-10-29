@@ -97,20 +97,24 @@ def _sidebar_app():
     if state.get_ds() is None:
         state.load_demo()
     ui.sidebar_controls()
-    st.write(f"target={st.session_state['target']} far={state.get_ds().project.use_far_benefit}")
+    st.write(f"target={st.session_state['target']}")
 
 
-def test_sidebar_controls_set_target_and_far(monkeypatch):
+def test_sidebar_target_control(monkeypatch):
     monkeypatch.chdir(ROOT)
     at = AppTest.from_function(_sidebar_app, default_timeout=60).run()
     assert not at.exception, [e.value for e in at.exception]
-    on = at.session_state["ds"].project.use_far_benefit
     assert at.session_state["target"] == at.session_state["ds"].project.target_level
     at.selectbox(key="target").set_value("Platinum").run()
-    at.toggle(key="far_on").set_value(not on).run()
     assert not at.exception
     assert at.session_state["target"] == "Platinum"
-    assert at.session_state["ds"].project.use_far_benefit is (not on)
+
+
+def test_recommendation_shows_incremental_return():
+    at = loaded_app()
+    at.switch_page("pages/2_recommendation.py").run()
+    assert not at.exception
+    assert any("MARR" in m.value for m in at.markdown)
 
 
 def test_report_page_offers_three_downloads():

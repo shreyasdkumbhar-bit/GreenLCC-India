@@ -1,6 +1,7 @@
 import streamlit as st
 
 from core import state, ui
+from core.io import DEMO_INPUT
 
 ui.hero("CM 617 · Topic 6 · Life Cycle Cost Analysis",
         "Reach your IGBC target at the lowest lifetime cost",
@@ -17,28 +18,32 @@ with left:
             st.error("Could not load the demo data:\n\n" + "\n".join(f"- {e}" for e in errs))
         else:
             st.rerun()
-    up = st.file_uploader("…or open a saved project (.json)", type="json",
-                          help="The project file you saved from the Report page. It holds the building, measures and IGBC tables.")
+    up = st.file_uploader("…or open your input workbook (.xlsx)", type="xlsx",
+                          help="The input workbook (Project, Measures, IGBC sheets). A results workbook from the Report page opens too.")
     if up is not None and st.session_state.get("_opened") != up.file_id:
-        errs = state.open_bundle(up.getvalue())
+        errs = state.open_workbook(up.getvalue())
         if errs:
             st.error("Could not open that file:\n\n" + "\n".join(f"- {e}" for e in errs))
         else:
             st.session_state["_opened"] = up.file_id
             st.rerun()
-    st.caption("All demo data is **illustrative**: dummy prices, tariffs and IGBC point tables for a prototype.")
+    if DEMO_INPUT.exists():
+        st.download_button("Download the input workbook to fill in", DEMO_INPUT.read_bytes(), file_name="greenlcc_input.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", icon=":material/download:",
+                           width="stretch", help="The demo's inputs with units, meanings and sources. Overwrite the values, then open it above.")
+    st.caption("Demo prices and tariffs are **sourced estimates** for a Pune office; the IGBC point tables are **illustrative**.")
 
 with right:
     if ds is None:
         st.subheader("How it works")
         st.markdown("""
-1. **Set up**: the building, electricity tariff, money assumptions and a library of green measures (AI can read vendor quotes).
+1. **Set up**: the building, tariffs, MARR and a library of green measures (fill the input workbook, or let AI read vendor quotes).
 2. **Recommendation**: the cheapest-over-its-life way to reach Silver, Gold or Platinum, next to the cheapest-upfront way.
-3. **Can we trust it?**: does the answer survive higher interest rates or slower tariff growth?
-4. **Report**: one PDF for the owner, one Excel for the details, and a project file to reopen later.
+3. **Can we trust it?**: break-even points, sensitivity and Monte Carlo: does the answer survive a higher MARR or slower tariff growth?
+4. **Report**: one PDF for the owner, one Excel for the details, and the input workbook to reopen later.
 """)
     else:
-        target, obj, df, rec, cheap = state.recommendation(ds)
+        target, df, rec, cheap = state.recommendation(ds)
         st.subheader(ds.project.name)
         if rec is None:
             ui.verdict("The answer", f"{target} is not reachable with this library",
@@ -47,11 +52,11 @@ with right:
             gain = cheap["lcc"] - rec["lcc"]
             if tuple(rec["selection"]) == tuple(cheap["selection"]):
                 head = f"{rec['level']} with {rec['points']:g} points, and the cheapest route is also the best one"
-                sub = f"Lifetime cost {ui.inr(rec['lcc'])} over {ds.project.study_period} years."
+                sub = f"Life-cycle cost {ui.inr(rec['lcc'])} (present worth) over {ds.project.study_period} years."
             else:
                 head = f"{rec['level']} for {ui.inr(gain)} less over {ds.project.study_period} years"
                 sub = (f"Spend {ui.inr(rec['capex'] - cheap['capex'])} more upfront than the cheapest {target} route; "
-                       f"electricity savings pay that back many times. {rec['points']:g} points, {rec['co2_t']:,.0f} t CO₂ avoided.")
+                       f"electricity savings repay it with interest above the MARR. {rec['points']:g} points, {rec['co2_t']:,.0f} t CO₂ avoided.")
             ui.verdict("The answer", head, sub)
         st.page_link(ui.PAGES["rec"][0], label="See why →", icon=":material/workspace_premium:")
 

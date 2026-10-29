@@ -7,7 +7,7 @@ import os
 
 import pandas as pd
 
-from . import cashflow, optimizer, risk
+from . import finance, optimizer, risk
 from .schemas import Dataset
 
 MODEL = "claude-sonnet-5-5"
@@ -32,26 +32,30 @@ def names(ds: Dataset, sel) -> list[str]:
     return [ds.measure(i).name for i in sel]
 
 
-def collect_results(ds: Dataset, df: pd.DataFrame, target: str, objective: str, runs: int = 3000, seed: int = 42) -> dict:
+def ror_text(rate: float | None, method: str) -> str:
+    return "n/a" if rate is None else f"{pct(rate)} ({method})"
+
+
+def collect_results(ds: Dataset, df: pd.DataFrame, target: str, runs: int = 3000, seed: int = 42) -> dict:
     """Everything the report needs, as plain numbers (so the LLM can never invent any)."""
     p = ds.project
-    rec = optimizer.best(df, ds, target, objective)
+    rec = optimizer.best(df, ds, target, "lcc")
     cheap = optimizer.best(df, ds, target, "capex")
     if rec is None:
         return {"feasible": False, "target": target, "message": optimizer.infeasible_message(df, ds, target)}
+    a, b = cheap["selection"], rec["selection"]
     out = {
         "feasible": True, "project": p.name, "city": p.city, "target": target, "study_period_years": p.study_period,
-        "discount_rate_pct": p.discount_rate * 100, "tariff_escalation_pct": p.tariff_escalation * 100,
-        "recommended": {"measures": names(ds, rec["selection"]), "points": rec["points"], "level": rec["level"],
-                        "capex": rec["capex"], "net_lcc": rec["lcc"], "eac": rec["eac"], "co2_tonnes": rec["co2_t"],
-                        "far_benefit": rec["far_benefit"]},
-        "cheapest_upfront": {"measures": names(ds, cheap["selection"]), "points": cheap["points"], "level": cheap["level"],
-                             "capex": cheap["capex"], "net_lcc": cheap["lcc"], "co2_tonnes": cheap["co2_t"]},
+        "marr_pct": p.discount_rate * 100, "inflation_pct": p.inflation * 100, "tariff_escalation_pct": p.tariff_escalation * 100,
+        "recommended": {"measures": names(ds, b), "points": rec["points"], "level": rec["level"],
+                        "capex": rec["capex"], "lcc": rec["lcc"], "eac": rec["eac"], "co2_tonnes": rec["co2_t"]},
+        "cheapest_upfront": {"measures": names(ds, a), "points": cheap["points"], "level": cheap["level"],
+                             "capex": cheap["capex"], "lcc": cheap["lcc"], "eac": cheap["eac"], "co2_tonnes": cheap["co2_t"]},
         "extra_capex": rec["capex"] - cheap["capex"],
         "lifetime_gain_vs_cheapest": cheap["lcc"] - rec["lcc"],
-        "same_portfolio": tuple(rec["selection"]) == tuple(cheap["selection"]),
+        "same_portfolio": tuple(b) == tuple(a),
     }
-    a, b = cheap["selection"], rec["selection"]
+    out["incremental"] = None if out["same_portfolio"] else risk.incremental(ds, a, b)
     out["break_even"] = {k: risk.break_even(ds, a, b, k) for k in risk.BREAK_EVEN_RANGES}
     mc = risk.monte_carlo(ds, a, b, runs=runs, seed=seed)
     out["monte_carlo"] = {"runs": runs, "p_recommended_beats_cheapest": mc.p_b_better,
@@ -59,6 +63,21 @@ def collect_results(ds: Dataset, df: pd.DataFrame, target: str, objective: str, 
                           "cheapest_p10": mc.pct_a["P10"], "cheapest_p50": mc.pct_a["P50"], "cheapest_p90": mc.pct_a["P90"],
                           "p_recommended_saves_money": mc.p_b_saves}
     return out
+
+
+def incremental_sentence(r: dict) -> str:
+    """Ch 7 rule in one line: does the extra upfront money earn at least the MARR?"""
+    inc = r.get("incremental")
+    if not inc:
+        return ""
+    rate, marr = inc["rate"], inc["marr"]
+    if rate is None:
+        return (f"The extra {money(inc['extra_capex'])} has no single rate of return; "
+                f"decide on present worth (gain {money(inc['pw_gain'])}).")
+    kind = "incremental IRR" if inc["method"] == "IRR" else "incremental MIRR"
+    ok = rate >= marr
+    return (f"The extra {money(inc['extra_capex'])} upfront earns **{pct(rate)} a year** ({kind}), "
+            f"{'above' if ok else 'below'} the {pct(marr)} MARR, so the costlier mix is {'worth it' if ok else 'not worth it'}.")
 
 
 def template_narrative(r: dict) -> str:
@@ -70,35 +89,34 @@ def template_narrative(r: dict) -> str:
         f"# {r['project']}: IGBC {r['target']} at the lowest life-cycle cost\n",
         "## Recommendation",
         f"Build **{', '.join(rec['measures']) or 'no additional measures'}**. This reaches **{rec['points']:g} points "
-        f"({rec['level']})** for an upfront investment of {money(rec['capex'])}, and its net life-cycle cost over "
-        f"{r['study_period_years']} years is **{money(rec['net_lcc'])}** (negative means it saves money overall).",
+        f"({rec['level']})** for an upfront investment of {money(rec['capex'])}. Its present worth of net cost over "
+        f"{r['study_period_years']} years at a {r['marr_pct']:.1f}% MARR is **{money(rec['lcc'])}** "
+        f"(EUAC {money(rec['eac'])} a year; negative means it saves money overall).",
         "",
         "## Versus the cheapest-upfront route",
     ]
     if r["same_portfolio"]:
-        lines.append("The cheapest-upfront Gold-eligible portfolio and the lowest-lifetime-cost portfolio are the same here, "
+        lines.append(f"The cheapest-upfront {r['target']} portfolio and the lowest-life-cycle-cost portfolio are the same here, "
                      "so there is no trade-off between first cost and lifetime value.")
     else:
         lines += [
             f"Choosing credits purely on first cost gives {ch['level']} ({ch['points']:g} pts) for {money(ch['capex'])} upfront, "
-            f"but a net life-cycle cost of {money(ch['net_lcc'])}.",
+            f"but a life-cycle cost of {money(ch['lcc'])}.",
             f"The recommended portfolio costs {money(r['extra_capex'])} more upfront and is **{money(r['lifetime_gain_vs_cheapest'])} better** "
-            "over the study period.",
+            "in present worth over the study period.",
+            incremental_sentence(r),
         ]
-    if rec["far_benefit"]:
-        lines.append(f"\nThe {rec['level']} rating may also unlock extra floor area worth about {money(rec['far_benefit'])} "
-                     "(an assumed value; verify the local incentive).")
     lines += ["", "## Risk"]
     mc = r["monte_carlo"]
-    lines.append(f"In {mc['runs']:,} simulated futures (uncertain tariff escalation, discount rate, capex and solar yield) the "
+    lines.append(f"In {mc['runs']:,} simulated futures (uncertain tariff escalation, MARR, capex and solar yield) the "
                  f"recommended portfolio beats the cheapest-upfront one in **{mc['p_recommended_beats_cheapest']*100:.0f}%** of runs. "
-                 f"Its net LCC ranges from {money(mc['recommended_p10'])} (P10) to {money(mc['recommended_p90'])} (P90).")
+                 f"Its life-cycle cost ranges from {money(mc['recommended_p10'])} (P10) to {money(mc['recommended_p90'])} (P90).")
     if be.get("discount") is not None:
-        lines.append(f"The ranking only flips if the discount rate exceeds **{pct(be['discount'])}**.")
+        lines.append(f"The ranking only flips if the MARR exceeds **{pct(be['discount'])}**.")
     if be.get("tariff_escalation") is not None:
         lines.append(f"It also flips if tariff escalation falls below **{pct(be['tariff_escalation'])}** a year.")
     lines += ["", f"## Carbon\nThe recommended portfolio avoids about **{rec['co2_tonnes']:,.0f} tCO2** over its life.",
-              "", "*All point tables, tariffs and prices in this prototype are illustrative; verify against IGBC reference guides and local tariff orders.*"]
+              "", "*Prices and tariffs are sourced estimates and the IGBC point tables are illustrative; verify before real decisions.*"]
     return "\n".join(lines)
 
 
@@ -128,58 +146,37 @@ def _summary_rows(ds: Dataset, results: dict) -> list[tuple[str, str]]:
     if not results.get("feasible"):
         return [("Project", p.name), ("Target", results.get("target", "")), ("Result", results.get("message", ""))]
     rec, ch, mc = results["recommended"], results["cheapest_upfront"], results["monte_carlo"]
-    be = results["break_even"]
+    be, inc = results["break_even"], results.get("incremental") or {}
     f = lambda v, as_pct=False: "never flips in tested range" if v is None else (pct(v) if as_pct else f"{v:.2f}")  # noqa: E731
     return [
         ("Project", p.name), ("Target IGBC level", results["target"]), ("Study period (years)", str(p.study_period)),
-        ("Discount rate", f"{p.discount_rate*100:.1f}%"), ("Tariff escalation", f"{p.tariff_escalation*100:.1f}% / yr"), ("", ""),
+        ("MARR (nominal)", f"{p.discount_rate*100:.1f}%"), ("Real MARR (Fisher)", pct(finance.real_rate(p.discount_rate, p.inflation))),
+        ("Tariff escalation", f"{p.tariff_escalation*100:.1f}% / yr"), ("", ""),
         ("RECOMMENDED PORTFOLIO", ", ".join(rec["measures"])), ("Points / level", f"{rec['points']:g} / {rec['level']}"),
-        ("Upfront capex", money(rec["capex"])), ("Net life-cycle cost", money(rec["net_lcc"])),
-        ("Equivalent annual cost", money(rec["eac"])), ("CO2 avoided (tonnes)", f"{rec['co2_tonnes']:,.0f}"), ("", ""),
+        ("Upfront capex", money(rec["capex"])), ("PW of net cost (LCC)", money(rec["lcc"])),
+        ("EUAC", money(rec["eac"])), ("CO2 avoided (tonnes)", f"{rec['co2_tonnes']:,.0f}"), ("", ""),
         ("CHEAPEST-UPFRONT PORTFOLIO", ", ".join(ch["measures"])), ("Points / level", f"{ch['points']:g} / {ch['level']}"),
-        ("Upfront capex", money(ch["capex"])), ("Net life-cycle cost", money(ch["net_lcc"])), ("", ""),
-        ("Lifetime gain of recommended", money(results["lifetime_gain_vs_cheapest"])),
-        ("Extra upfront for recommended", money(results["extra_capex"])), ("", ""),
+        ("Upfront capex", money(ch["capex"])), ("PW of net cost (LCC)", money(ch["lcc"])), ("", ""),
+        ("INCREMENTAL ANALYSIS (RECOMMENDED OVER CHEAPEST)", ""),
+        ("Extra upfront", money(results["extra_capex"])), ("PW gain", money(results["lifetime_gain_vs_cheapest"])),
+        ("Incremental rate of return", ror_text(inc.get("rate"), inc.get("method", "")) if inc else "same portfolio"),
+        ("Decision rule", "accept the costlier mix if the incremental rate >= MARR (Ch 7)"), ("", ""),
         ("Monte Carlo: recommended wins", f"{mc['p_recommended_beats_cheapest']*100:.0f}% of {mc['runs']:,} runs"),
-        ("Ranking flips if discount rate above", f(be.get("discount"), True)),
-        ("Ranking flips if tariff escalation below", f(be.get("tariff_escalation"), True)), ("", ""),
-        ("NOTE", "Illustrative prototype data; verify IGBC point tables, tariffs and prices before real decisions."),
+        ("Ranking flips if MARR above", f(be.get("discount"), True)),
+        ("Ranking flips if tariff escalation below", f(be.get("tariff_escalation"), True)),
+        ("Ranking flips if all capex scaled above", f(be.get("capex_mult"))), ("", ""),
+        ("NOTE", "Prices and tariffs are sourced estimates; IGBC point tables are illustrative. Verify before real decisions."),
     ]
 
 
-def _style(wb) -> None:
-    from openpyxl.styles import Alignment, Font, PatternFill
-    from openpyxl.utils import get_column_letter
-
-    head = PatternFill("solid", fgColor="1E7B4F")
-    for ws in wb.worksheets:
-        ws.sheet_view.showGridLines = False
-        for c in ws[1]:
-            c.fill, c.font = head, Font(bold=True, color="FFFFFF")
-            c.alignment = Alignment(vertical="center", wrap_text=True)
-        ws.freeze_panes = "A2"
-        for col in ws.columns:
-            width = max((len(str(c.value)) for c in col if c.value is not None), default=8)
-            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max(width + 2, 10), 70)
-            for c in col[1:]:
-                if isinstance(c.value, (int, float)) and not isinstance(c.value, bool):
-                    c.number_format = "#,##0.00" if abs(c.value) < 10 and c.value != int(c.value) else "#,##0"
-                if isinstance(c.value, str) and len(c.value) > 70:
-                    c.alignment = Alignment(wrap_text=True, vertical="top")
-    ws = wb["Summary"]
-    ws.column_dimensions["A"].width = 42
-    ws.column_dimensions["B"].width = 90
-    for row in ws.iter_rows(min_row=2):
-        if row[0].value and str(row[0].value).isupper():
-            row[0].font = Font(bold=True, color="0F4D33")
-            row[1].font = Font(bold=True)
-
-
 def to_excel(ds: Dataset, df: pd.DataFrame, rec_sel, results: dict, cheap_sel=()) -> bytes:
-    """Formatted, multi-sheet workbook: summary, IGBC checklist, shortlist, cash flow, Monte Carlo, inputs, all portfolios."""
+    """Results workbook: summary, checklist, shortlist, cash flow, Monte Carlo, portfolios, plus the input sheets
+    (so this file can also be reopened from Home)."""
+    from openpyxl.styles import Font
+
+    from . import io as gio
     from . import tables
 
-    p = ds.project
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
         pd.DataFrame(_summary_rows(ds, results), columns=["Item", "Value"]).to_excel(xw, sheet_name="Summary", index=False)
@@ -191,9 +188,15 @@ def to_excel(ds: Dataset, df: pd.DataFrame, rec_sel, results: dict, cheap_sel=()
         top = df.sort_values("lcc").head(200).copy()
         top["selection"] = top["selection"].map(", ".join)
         top.to_excel(xw, sheet_name="Portfolios (top 200)", index=False)
-        pd.DataFrame(p.model_dump().items(), columns=["parameter", "value"]).astype(str).to_excel(xw, sheet_name="Project", index=False)
-        pd.DataFrame([m.model_dump() for m in ds.measures]).to_excel(xw, sheet_name="Measures", index=False)
-        pd.DataFrame([c.model_dump() for c in ds.components]).to_excel(xw, sheet_name="Components", index=False)
-        pd.DataFrame([(k, json.dumps(v, default=float)) for k, v in results.items()], columns=["key", "value"]).to_excel(xw, sheet_name="Results", index=False)
-        _style(xw.book)
+        for name, sheet in gio.input_sheets(ds).items():
+            if name != "README":
+                sheet.to_excel(xw, sheet_name=name, index=False)
+        pd.DataFrame([(k, json.dumps(v, default=float)) for k, v in results.items()],
+                     columns=["key", "value"]).to_excel(xw, sheet_name="Results", index=False)
+        gio.style_sheets(xw.book, {"Summary": {"A": 50, "B": 90}, **gio.INPUT_WIDTHS})
+        ws = xw.book["Summary"]
+        for row in ws.iter_rows(min_row=2):
+            if row[0].value and str(row[0].value).isupper():
+                row[0].font = Font(bold=True, color="0F4D33")
+                row[1].font = Font(bold=True)
     return buf.getvalue()

@@ -13,7 +13,7 @@ from typing import IO
 
 from pydantic import BaseModel, Field
 
-from .schemas import Component, Measure
+from .schemas import Measure
 
 MODEL = "claude-sonnet-5-5"
 
@@ -104,26 +104,22 @@ def extract(file: str | IO[bytes]) -> ExtractedQuote:
     return parse_llm(text) or parse_regex(text)
 
 
-def to_measure(q: ExtractedQuote, *, measure_id: str, kind: str, exclusive_group: str | None = None,
+def to_measure(q: ExtractedQuote, *, measure_id: str, life_years: float, exclusive_group: str | None = None,
                credit_id: str = "", points_fixed: float = 0, energy_saving_kwh: float = 0,
                water_saving_kl: float = 0, kwp: float = 0, degradation: float = 0,
-               om_escalation: float = 0.05, source: str = "", baseline_cost: float = 0,
-               baseline_om: float = 0) -> tuple[Measure, list[Component]]:
+               baseline_cost: float = 0, baseline_om: float = 0) -> Measure:
     """Combine the reviewed quote with the user-supplied engineering fields.
 
     Costs in the library are INCREMENTAL to the code-minimum baseline, so the baseline system's
     cost (e.g. the split ACs a VRF replaces) is deducted from the quoted price.
     """
-    m = Measure(measure_id=measure_id, name=f"{q.item or measure_id} ({q.vendor})".strip(), exclusive_group=exclusive_group,
-                kind=kind, credit_id=credit_id, points_fixed=points_fixed, capex=max((q.capex or 0) - baseline_cost, 0),
-                om_annual=max((q.om_annual or 0) - baseline_om, 0),
-                om_escalation=om_escalation, energy_saving_kwh=energy_saving_kwh, kwp=kwp, water_saving_kl=water_saving_kl,
-                degradation=degradation, source=source or f"quote:{q.vendor}", description=q.capacity)
-    comps = []
-    if q.component_cost and q.component_life_years:
-        comps.append(Component(measure_id=measure_id, component=q.component_name or "Replaceable component",
-                               cost=q.component_cost, life_years=q.component_life_years))
-    return m, comps
+    return Measure(measure_id=measure_id, name=f"{q.item or measure_id} ({q.vendor})".strip(), exclusive_group=exclusive_group,
+                   credit_id=credit_id, points_fixed=points_fixed, capex=max((q.capex or 0) - baseline_cost, 0),
+                   life_years=life_years, om_annual=max((q.om_annual or 0) - baseline_om, 0),
+                   energy_saving_kwh=energy_saving_kwh, kwp=kwp, water_saving_kl=water_saving_kl, degradation=degradation,
+                   part_name=q.component_name if q.component_cost and q.component_life_years else "",
+                   part_cost=(q.component_cost or 0) if q.component_life_years else 0, part_life=q.component_life_years or 0,
+                   description=f"From quote: {q.vendor}, {q.capacity}".strip(", "))
 
 
 def capacity_kwp(capacity: str) -> float:

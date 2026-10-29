@@ -74,6 +74,10 @@ def inject_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
 
 
+def pct(x: float | None) -> str:
+    return "–" if x is None else f"{x*100:.1f}%"
+
+
 def inr(x: float | None, digits: int = 2) -> str:
     """Rupees in Indian units: Cr / L / plain."""
     if x is None:
@@ -91,14 +95,19 @@ def hero(kicker: str, title: str, text: str) -> None:
                 f'<p>{html.escape(text)}</p></div>', unsafe_allow_html=True)
 
 
-# Plain-language names on screen; the textbook term lives in the tooltip so the course vocabulary stays visible.
+# Plain-language names on screen; the textbook term (CE 725) lives in the tooltip so the course vocabulary stays visible.
 LABELS = {
-    "lcc": ("Lifetime cost", "Life-cycle cost (LCC): present worth of capex + O&M + replacements − residual value − energy and water savings. Negative = pays for itself."),
-    "net_lcc": ("Lifetime cost after FAR value", "Net LCC: LCC minus the value of the extra floor area the rating unlocks (counted once, at year 0)."),
-    "eac": ("Cost per year", "Equivalent annual cost (EAC) = LCC × capital recovery factor, i.e. the LCC spread evenly over the study period."),
-    "capex": ("Upfront cost", "Capital expenditure (capex) at year 0, net of subsidy, incremental to the code-minimum baseline."),
-    "sir": ("₹ saved per ₹ spent", "Savings-to-investment ratio (SIR) = PW(savings) / PW(costs). Above 1 = worth doing."),
-    "payback": ("Payback", "Simple payback: first year the cumulative (undiscounted) net cash flow turns negative."),
+    "lcc": ("Life-cycle cost (PW)", "Present worth at the MARR of capex + O&M + replacements − salvage − energy and water savings, "
+            "over the study period (Ch 5, planning-horizon method). Negative = pays for itself."),
+    "eac": ("Cost per year (EUAC)", "Equivalent uniform annual cost = PW × (A/P, MARR, N): the life-cycle cost spread evenly over the years (Ch 6)."),
+    "capex": ("Upfront cost", "Capital expenditure at year 0, incremental to the code-minimum option it replaces."),
+    "bcr": ("Benefit-cost ratio", "BCR = PW of savings ÷ PW of costs. Above 1 = the measure is worth more than it costs at the MARR."),
+    "ror": ("Rate of return", "IRR: the rate at which PW = 0 (Ch 7). When the cash flow changes sign more than once the IRR is not unique, "
+            "so MIRR is shown instead, with finance and reinvestment rate = MARR (Ch 8). Compare with the MARR."),
+    "inc": ("Return on the extra capex", "Incremental IRR (or MIRR) of the recommended mix over the cheapest-upfront mix. "
+            "Ch 7 rule: if it is at least the MARR, the extra money is well spent."),
+    "payback": ("Discounted payback", "Years until the cumulative present worth turns in your favour. Unlike simple payback it respects the time value of money."),
+    "marr": ("MARR", "Minimum attractive rate of return: the discount rate every cash flow is brought back to year 0 with (nominal)."),
     "co2": ("CO₂ avoided", "Lifetime tonnes of CO₂ avoided = kWh saved × grid emission factor."),
 }
 
@@ -190,27 +199,16 @@ def sidebar_brand() -> None:
                         '<div class="sub">IGBC credit optimizer · CM 617</div></div></div>', unsafe_allow_html=True)
 
 
-def _far_changed() -> None:
-    ds = state.get_ds()
-    on = st.session_state["far_on"]
-    state.set_ds(ds.model_copy(update={"project": ds.project.model_copy(update={"use_far_benefit": on})}))
-    st.session_state.pop("objective", None)
-    st.session_state.pop("w_objective", None)
-
-
 def sidebar_controls() -> None:
-    """The two choices that drive every page live in one place: target level and whether to count FAR value."""
+    """The one choice that drives every page lives in one place: the target IGBC level."""
     ds = state.get_ds()
     if ds is None:
         return
     levels = [lv.level for lv in sorted(ds.levels, key=lambda x: x.rank)]
     if st.session_state.get("target") not in levels:
         st.session_state["target"] = ds.project.target_level if ds.project.target_level in levels else levels[-1]
-    st.session_state["far_on"] = ds.project.use_far_benefit
     with st.sidebar:
         st.selectbox("Target IGBC level", levels, key="target", help="Applies to every page and to the report.")
-        st.toggle("Count extra-FAR value", key="far_on", on_change=_far_changed,
-                  help="Some states give extra floor area (FAR) for a green rating. When on, its value is subtracted from lifetime cost.")
 
 
 def sidebar_footer() -> None:
@@ -218,13 +216,13 @@ def sidebar_footer() -> None:
     if ds is None:
         return
     try:
-        target, obj, df, rec, _ = state.recommendation(ds)
+        target, df, rec, _ = state.recommendation(ds)
     except Exception:
         return
     if rec is None:
         body = f'<span class="no">{target} not reachable</span>'
     else:
         body = (f'<span class="ok">{rec["level"]} · {rec["points"]:g} pts ✓</span><br>'
-                f'Lifetime cost {inr(rec["lcc"])}<br>Upfront {inr(rec["capex"])}')
+                f'Life-cycle cost {inr(rec["lcc"])}<br>Upfront {inr(rec["capex"])}')
     st.sidebar.markdown(f'<div class="sidefoot"><div class="t">{html.escape(ds.project.name)}</div>'
                         f'{body}</div>', unsafe_allow_html=True)

@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from . import optimizer
-from .io import load_bundle, load_dataset
+from .io import load_dataset, read_workbook
 from .schemas import Dataset
 
 
@@ -27,13 +27,12 @@ def load_demo() -> list[str]:
 
 
 def reset_choices() -> None:
-    """Forget the sidebar target / objective so they follow the (new) project defaults."""
-    for k in ("target", "objective", "w_objective"):
-        st.session_state.pop(k, None)
+    """Forget the sidebar target so it follows the (new) project default."""
+    st.session_state.pop("target", None)
 
 
-def open_bundle(data: bytes) -> list[str]:
-    ds, errs = load_bundle(data)
+def open_workbook(data: bytes) -> list[str]:
+    ds, errs = read_workbook(data)
     if ds:
         set_ds(ds)
         reset_choices()
@@ -50,17 +49,11 @@ def portfolios(ds: Dataset) -> pd.DataFrame:
     return _portfolios(ds.model_dump_json())
 
 
-def objective_for(ds: Dataset) -> str:
-    """Objective used for the headline recommendation."""
-    return st.session_state.get("objective") or ("net_lcc" if ds.project.use_far_benefit else "lcc")
-
-
 def recommendation(ds: Dataset):
-    """(target, objective, all-portfolios table, recommended row or None, cheapest-capex row or None)"""
+    """(target, all-portfolios table, lowest-LCC row or None, cheapest-capex row or None)"""
     target = st.session_state.get("target") or ds.project.target_level
-    obj = objective_for(ds)
     df = portfolios(ds)
-    return target, obj, df, optimizer.best(df, ds, target, obj), optimizer.best(df, ds, target, "capex")
+    return target, df, optimizer.best(df, ds, target, "lcc"), optimizer.best(df, ds, target, "capex")
 
 
 def highest_reachable(ds: Dataset, df: pd.DataFrame) -> str | None:

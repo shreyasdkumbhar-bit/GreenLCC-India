@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import brentq
 
+from . import cashflow
 from .cashflow import Streams, evaluate, measure_streams
 from .schemas import Dataset
 
@@ -14,7 +15,7 @@ from .schemas import Dataset
 def portfolio_streams(ds: Dataset, ids) -> Streams:
     S = Streams.zero(ds.project.study_period)
     for i in ids:
-        S = S + measure_streams(ds.project, ds.measure(i), ds.comps_for(i))
+        S = S + measure_streams(ds.project, ds.measure(i))
     return S
 
 
@@ -22,8 +23,13 @@ def lcc(ds: Dataset, ids, **kw) -> float:
     return evaluate(portfolio_streams(ds, ids), ds.project, **kw).scalar("lcc")
 
 
+def incremental(ds: Dataset, ids_a, ids_b) -> dict:
+    """Incremental rate of return of portfolio B over portfolio A (Ch 7), checked against the MARR."""
+    return cashflow.incremental(portfolio_streams(ds, ids_a), portfolio_streams(ds, ids_b), ds.project)
+
+
 def discount_sweep(ds: Dataset, ids_a, ids_b, rates=None) -> pd.DataFrame:
-    rates = np.linspace(0.04, 0.14, 21) if rates is None else rates
+    rates = np.linspace(0.04, 0.20, 33) if rates is None else rates
     Sa, Sb = portfolio_streams(ds, ids_a), portfolio_streams(ds, ids_b)
     a = evaluate(Sa, ds.project, d=rates).lcc
     b = evaluate(Sb, ds.project, d=rates).lcc
@@ -31,9 +37,8 @@ def discount_sweep(ds: Dataset, ids_a, ids_b, rates=None) -> pd.DataFrame:
 
 
 BREAK_EVEN_RANGES = {
-    "discount": (0.01, 0.30, "Discount rate"),
+    "discount": (0.01, 0.30, "MARR (discount rate)"),
     "tariff_escalation": (-0.03, 0.15, "Tariff escalation"),
-    "tariff_mult": (0.3, 2.5, "Grid tariff multiplier"),
     "capex_mult": (0.3, 2.5, "Capex multiplier"),
 }
 
@@ -64,7 +69,7 @@ def tornado(ds: Dataset, ids, swing: float = 0.20) -> pd.DataFrame:
     tests = {
         "Grid tariff (±20%)": ({"tariff_mult": 1 - swing}, {"tariff_mult": 1 + swing}),
         "Tariff escalation (±2 pp)": ({"g": p.tariff_escalation - 0.02}, {"g": p.tariff_escalation + 0.02}),
-        "Discount rate (±2 pp)": ({"d": p.discount_rate + 0.02}, {"d": max(p.discount_rate - 0.02, 0.005)}),
+        "MARR (±2 pp)": ({"d": p.discount_rate + 0.02}, {"d": max(p.discount_rate - 0.02, 0.005)}),
         "Capex (±20%)": ({"capex_mult": 1 + swing}, {"capex_mult": 1 - swing}),
         "O&M (±20%)": ({"om_mult": 1 + swing}, {"om_mult": 1 - swing}),
         "Solar yield (±20%)": ({"yield_mult": 1 - swing}, {"yield_mult": 1 + swing}),

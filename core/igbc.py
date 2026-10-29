@@ -24,9 +24,9 @@ class Score:
 
 
 def metrics(p: Project, selected: list[Measure]) -> dict:
-    eff_kwh = sum(m.energy_saving_kwh for m in selected if m.kind == "efficiency")
-    re_kwh = sum(m.kwp for m in selected if m.kind == "renewable") * p.pv_yield_kwh_per_kwp
-    water = sum(m.water_saving_kl for m in selected if m.kind == "water")
+    eff_kwh = sum(m.energy_saving_kwh for m in selected)
+    re_kwh = sum(m.kwp for m in selected) * p.pv_yield_kwh_per_kwp
+    water = sum(m.water_saving_kl for m in selected)
     proposed = max(p.baseline_energy_kwh - eff_kwh, 1.0)
     return {
         "energy_eff_pct": 100 * eff_kwh / p.baseline_energy_kwh,
